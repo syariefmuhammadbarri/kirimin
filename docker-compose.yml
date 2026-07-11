@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # 1. Aplikasi Laravel (PHP-FPM)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ekspedisi-online-app
+    container_name: ekspedisi_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    depends_on:
+      - db
+      - redis
+    networks:
+      - ekspedisi_network
+
+  # 2. Web Server (NGINX)
+  nginx:
+    image: nginx:alpine
+    container_name: ekspedisi_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    depends_on:
+      - app
+    networks:
+      - ekspedisi_network
+
+  # 3. Database (MySQL 8.0)
+  db:
+    image: mysql:8.0
+    container_name: ekspedisi_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-ekspedisi_online}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secretpass}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secretpass}
+      MYSQL_USER: ${DB_USERNAME:-laraveluser}
+    ports:
+      - "33060:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - ekspedisi_network
+
+  # 4. Cache & Queue (Redis)
+  redis:
+    image: redis:alpine
+    container_name: ekspedisi_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - ekspedisi_network
+
+networks:
+  ekspedisi_network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local
+  redisdata:
+    driver: local
