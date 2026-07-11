@@ -71,6 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/confirm-cash/{shipment}', [BranchAdminController::class, 'confirmCashPayment'])->name('confirm-cash');
         Route::post('/assign-courier/{shipment}', [BranchAdminController::class, 'assignCourier'])->name('assign-courier');
         Route::get('/receipt/{shipment}', [BranchAdminController::class, 'printReceipt'])->name('receipt');
+        Route::get('/assignments', [BranchAdminController::class, 'viewAssignments'])->name('assignments');
         Route::get('/reports', [BranchAdminController::class, 'downloadBranchReport'])->name('reports');
     });
 

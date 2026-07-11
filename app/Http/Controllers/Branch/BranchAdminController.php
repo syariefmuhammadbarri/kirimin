@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Branch;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\CourierAssignment;
 use App\Models\Payment;
 use App\Models\Shipment;
 use App\Models\ShipmentTracking;
@@ -191,28 +192,92 @@ class BranchAdminController extends Controller
     {
         $request->validate([
             'courier_id' => 'required|exists:users,id',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $courier = User::findOrFail($request->courier_id);
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
 
-        DB::transaction(function () use ($request, $shipment, $courier, $branch) {
+        // Check courier availability: max 5 active assignments
+        $activeCount = CourierAssignment::where('courier_id', $courier->id)
+            ->whereIn('status', ['pending', 'assigned'])
+            ->count();
+
+        if ($activeCount >= 5) {
+            return back()->with('error', 'Kurir ini sudah memiliki ' . $activeCount . ' tugas aktif. Maksimal 5 tugas per kurir.');
+        }
+
+        // Check if shipment already has an active assignment
+        $existingAssignment = CourierAssignment::where('shipment_id', $shipment->id)
+            ->whereIn('status', ['pending', 'assigned'])
+            ->first();
+
+        if ($existingAssignment) {
+            return back()->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
+        }
+
+        DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch) {
+            // Update shipment
             $shipment->update([
                 'courier_id' => $courier->id,
                 'status' => 'assigned_to_courier'
             ]);
 
+            // Create assignment record
+            CourierAssignment::create([
+                'shipment_id' => $shipment->id,
+                'courier_id' => $courier->id,
+                'assigned_by' => $admin->id,
+                'assigned_at' => now(),
+                'status' => 'assigned',
+                'notes' => $request->notes,
+            ]);
+
+            // Create tracking
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => "Paket diserahkan ke Kurir {$courier->name} untuk pengantaran.",
+                'description' => "Paket ditugaskan ke Kurir {$courier->name} untuk pengantaran. " . ($request->notes ? "Catatan: {$request->notes}" : ''),
                 'status' => 'assigned_to_courier',
                 'tracked_at' => now(),
             ]);
         });
 
-        return back()->with('success', 'Kurir berhasil ditugaskan untuk paket ini.');
+        return back()->with('success', "Kurir {$courier->name} berhasil ditugaskan untuk paket {$shipment->tracking_number}.");
+    }
+
+    public function viewAssignments()
+    {
+        $admin = Auth::user();
+        $branchId = $admin->branch_id;
+
+        if (!$branchId) {
+            return redirect()->route('landing')->with('error', 'Akun Anda tidak memiliki asosiasi cabang.');
+        }
+
+        $branch = Branch::findOrFail($branchId);
+
+        $assignments = CourierAssignment::with(['shipment', 'courier', 'assignor'])
+            ->whereHas('shipment', function ($query) use ($branchId, $branch) {
+                $query->where('branch_id', $branchId)
+                      ->orWhere('origin_city', $branch->city);
+            })
+            ->latest()
+            ->get();
+
+        $couriers = User::role('kurir')
+            ->where('branch_id', $branchId)
+            ->get();
+
+        $stats = [
+            'total' => $assignments->count(),
+            'active' => $assignments->whereIn('status', ['pending', 'assigned'])->count(),
+            'completed' => $assignments->where('status', 'completed')->count(),
+            'cancelled' => $assignments->where('status', 'cancelled')->count(),
+        ];
+
+        return view('branch.assignments', compact('assignments', 'couriers', 'stats', 'branch'));
     }
 
     public function printReceipt(Shipment $shipment)

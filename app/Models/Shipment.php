@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -52,5 +53,15 @@ class Shipment extends Model
     public function deliveryProof(): HasOne
     {
         return $this->hasOne(DeliveryProof::class);
+    }
+
+    public function courierAssignments(): HasMany
+    {
+        return $this->hasMany(CourierAssignment::class);
+    }
+
+    public function activeAssignment()
+    {
+        return $this->hasOne(CourierAssignment::class)->whereIn('status', ['assigned', 'pending'])->latestOfMany();
     }
 }
