@@ -3,12 +3,12 @@
 @section('styles')
 <style>
     .form-input {
-        @apply w-full px-4 py-3 rounded-lg bg-white border border-slate-200 text-slate-900 placeholder-slate-400
+        @apply w-full px-4 py-3 rounded-lg bg-white border border-gray-200 text-gray-900 placeholder-gray-400
                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm shadow-sm;
     }
-    .form-label { @apply block text-sm font-medium text-slate-700 mb-2; }
-    .form-error { @apply mt-1.5 text-xs text-red-500; }
-    .section-panel { @apply card-panel rounded-2xl border border-black/5 p-6 mb-6; }
+    .form-label { @apply block text-sm font-semibold text-gray-700 mb-2; }
+    .form-error { @apply mt-1.5 text-xs text-red-600; }
+    .section-panel { @apply card-panel rounded-2xl border border-gray-200 p-6 mb-6; }
     .rate-result { display: none; }
     .rate-result.visible { display: block; }
 
@@ -84,6 +84,12 @@
     }
     .service-card:not(.selected) .service-icon {
         background: #f1f5f9;
+    }
+    .service-card .service-label-text {
+        color: #475569;
+    }
+    .service-card.selected .service-label-text {
+        color: #1e40af;
     }
 </style>
 @endsection
