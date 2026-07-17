@@ -51,7 +51,7 @@
             </div>
         </div>
         <p class="text-xs text-slate-500 text-center">Arahkan kamera ke QR Code pada label paket</p>
-        <p class="text-xs text-blue-400 mt-1 text-center">(Fitur kamera memerlukan integrasi kamera browser)</p>
+        <p class="text-xs text-slate-600 mt-1 text-center">(Fitur kamera memerlukan integrasi kamera browser)</p>
     </div>
 
     {{-- Divider --}}
@@ -62,24 +62,24 @@
     </div>
 
     {{-- Manual Input Form --}}
-    <div class="glass-panel rounded-2xl border border-slate-800 p-6">
+    <div class="glass-panel rounded-2xl border border-slate-200 p-6">
         <form method="POST" action="{{ route('branch.scan.process') }}">
             @csrf
             <div class="mb-5">
-                <label for="booking_code" class="block text-sm font-medium text-slate-300 mb-2">
+                <label for="booking_code" class="block text-sm font-medium text-slate-700 mb-2">
                     Kode Booking / Nomor Resi
                 </label>
                 <input id="booking_code" type="text" name="booking_code"
                        value="{{ old('booking_code') }}" autofocus required
                        placeholder="Contoh: BK-20260702-ABCDE atau EXP-20260702-ABCDE"
-                       class="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm font-mono">
+                       class="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition text-sm font-mono">
                 @error('booking_code')
-                    <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p>
+                    <p class="mt-1.5 text-xs text-slate-600">{{ $message }}</p>
                 @enderror
             </div>
 
             <button type="submit"
-                    class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-950/50 transition flex items-center justify-center gap-2">
+                    class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg shadow-lg shadow-slate-900/10 transition flex items-center justify-center gap-2">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 Cari Paket
             </button>
@@ -87,7 +87,7 @@
     </div>
 
     {{-- Info --}}
-    <div class="mt-6 p-4 rounded-xl bg-slate-900/40 border border-slate-800 text-xs text-slate-400 space-y-1.5">
+    <div class="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1.5">
         <p class="font-medium text-slate-300 mb-2">Panduan Penggunaan:</p>
         <p>• <strong class="text-slate-300">Kode Booking</strong>: format BK-YYYYMMDD-XXXXX</p>
         <p>• <strong class="text-slate-300">Nomor Resi</strong>: format EXP-YYYYMMDD-XXXXX</p>

@@ -15,7 +15,7 @@
             <h1 class="text-2xl font-bold text-white">Proses Paket Masuk</h1>
             <p class="text-sm text-slate-400 mt-1">Cabang: <span class="text-slate-200 font-medium">{{ $branch->name }}</span></p>
         </div>
-        <span class="text-xs font-semibold uppercase px-3 py-1.5 rounded-full bg-blue-950/60 text-blue-400 border border-blue-800/50 mt-1">
+        <span class="text-xs font-semibold uppercase px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 mt-1">
             {{ str_replace('_', ' ', $shipment->status) }}
         </span>
     </div>
@@ -30,7 +30,7 @@
                 <div class="space-y-3 text-sm">
                     <div class="flex justify-between">
                         <span class="text-slate-500">Nomor Resi</span>
-                        <span class="font-mono font-semibold text-blue-400">{{ $shipment->tracking_number }}</span>
+                        <span class="font-mono font-semibold text-slate-700">{{ $shipment->tracking_number }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Kode Booking</span>
@@ -99,7 +99,7 @@
                 </div>
                 <div class="flex items-center justify-between mt-2">
                     <span class="text-sm text-slate-400">Status</span>
-                    <span class="text-sm font-semibold {{ $shipment->payment->payment_status === 'paid' ? 'text-emerald-400' : 'text-orange-400' }} uppercase">
+                    <span class="text-sm font-semibold text-slate-700 uppercase">
                         {{ $shipment->payment->payment_status === 'paid' ? '✓ Lunas' : '⚠ Belum Bayar' }}
                     </span>
                 </div>
@@ -111,28 +111,28 @@
         <div class="space-y-5">
             {{-- Weigh Form --}}
             @if(in_array($shipment->status, ['waiting_dropoff', 'booking_created']))
-            <div class="glass-panel rounded-2xl border border-blue-900/30 p-5">
-                <h2 class="text-base font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-1m6 1l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-1m6 1H6"/></svg>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
+                <h2 class="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-1m6 1l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-1m6 1H6"/></svg>
                     Timbang Paket
                 </h2>
                 <form method="POST" action="{{ route('branch.process-weigh', $shipment) }}">
                     @csrf
                     <div class="mb-4">
-                        <label class="block text-sm font-medium text-slate-300 mb-2" for="actual_weight">Berat Aktual (kg) *</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-2" for="actual_weight">Berat Aktual (kg) *</label>
                         <input id="actual_weight" type="number" name="actual_weight" step="0.1" min="0.1" required
                                placeholder="0.0"
-                               class="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm">
+                               class="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 transition text-sm">
                         @error('actual_weight')<p class="mt-1 text-xs text-red-400">{{ $message }}</p>@enderror
                     </div>
                     <div class="mb-5">
-                        <label class="block text-sm font-medium text-slate-300 mb-2" for="notes">Catatan (opsional)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-2" for="notes">Catatan (opsional)</label>
                         <textarea id="notes" name="notes" rows="2"
-                                  class="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm resize-none"
+                                  class="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 transition text-sm resize-none"
                                   placeholder="Kondisi paket, catatan khusus..."></textarea>
                     </div>
                     <button type="submit"
-                            class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition">
+                            class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg transition">
                         Simpan & Proses Timbangan
                     </button>
                 </form>
@@ -141,18 +141,18 @@
 
             {{-- Cash Confirm --}}
             @if($shipment->payment && $shipment->payment->payment_status !== 'paid' && in_array($shipment->status, ['weighed', 'waiting_dropoff', 'booking_created']))
-            <div class="glass-panel rounded-2xl border border-emerald-900/30 p-5">
-                <h2 class="text-base font-semibold text-white mb-2 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
+                <h2 class="text-base font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
                     Konfirmasi Pembayaran Tunai
                 </h2>
-                <p class="text-sm text-slate-400 mb-4">
-                    Tagihan: <span class="font-bold text-white">Rp {{ number_format($shipment->payment->amount, 0, ',', '.') }}</span>
+                <p class="text-sm text-slate-600 mb-4">
+                    Tagihan: <span class="font-bold text-slate-800">Rp {{ number_format($shipment->payment->amount, 0, ',', '.') }}</span>
                 </p>
                 <form method="POST" action="{{ route('branch.confirm-cash', $shipment) }}" onsubmit="return confirm('Konfirmasi pembayaran tunai telah diterima?')">
                     @csrf
                     <button type="submit"
-                            class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition">
+                            class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg transition">
                         ✓ Konfirmasi Pembayaran Cash
                     </button>
                 </form>
@@ -161,26 +161,26 @@
 
             {{-- Paid Badge --}}
             @if($shipment->payment && $shipment->payment->payment_status === 'paid' && $shipment->status === 'weighed')
-            <div class="glass-panel rounded-2xl border border-emerald-900/30 p-5 text-center">
-                <p class="text-emerald-400 font-semibold text-sm">✓ Pembayaran Lunas</p>
-                <p class="text-xs text-slate-400 mt-1">Paket siap diterima di gudang dan ditugaskan ke kurir</p>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5 text-center">
+                <p class="text-slate-700 font-semibold text-sm">✓ Pembayaran Lunas</p>
+                <p class="text-xs text-slate-600 mt-1">Paket siap diterima di gudang dan ditugaskan ke kurir</p>
             </div>
             @endif
 
             {{-- Receive Transit Button --}}
             @if($shipment->status === 'in_transit' && strtolower($shipment->destination_city) === strtolower($branch->city))
-            <div class="glass-panel rounded-2xl border border-blue-900/30 p-5">
-                <h2 class="text-base font-semibold text-white mb-2 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
+                <h2 class="text-base font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     Terima Paket Transit
                 </h2>
-                <p class="text-sm text-slate-400 mb-4">
+                <p class="text-sm text-slate-600 mb-4">
                     Paket transit ini ditujukan ke kota Anda. Konfirmasi kedatangan paket di cabang tujuan.
                 </p>
                 <form method="POST" action="{{ route('branch.receive-transit', $shipment) }}" onsubmit="return confirm('Terima paket ini di cabang {{ $branch->name }}?')">
                     @csrf
                     <button type="submit"
-                            class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition">
+                            class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg transition">
                         ✓ Konfirmasi Terima Paket Transit
                     </button>
                 </form>
@@ -189,11 +189,11 @@
 
             {{-- Already processed --}}
             @if(in_array($shipment->status, ['received_at_branch', 'assigned_to_courier', 'out_for_delivery', 'delivered']))
-            <div class="glass-panel rounded-2xl border border-slate-700 p-5 text-center">
-                <p class="text-slate-300 font-semibold text-sm">Paket Sudah Diproses</p>
-                <p class="text-xs text-slate-500 mt-1 capitalize">Status: {{ str_replace('_',' ',$shipment->status) }}</p>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5 text-center">
+                <p class="text-slate-700 font-semibold text-sm">Paket Sudah Diproses</p>
+                <p class="text-xs text-slate-600 mt-1 capitalize">Status: {{ str_replace('_',' ',$shipment->status) }}</p>
                 <a href="{{ route('branch.receipt', $shipment) }}"
-                   class="mt-4 inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition">
+                   class="mt-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-800 transition">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Cetak Resi
                 </a>

@@ -23,7 +23,11 @@ class RecaptchaService
         }
 
         if (empty($token)) {
-            return false;
+            return empty($this->secretKey) || app()->environment('local', 'testing');
+        }
+
+        if (empty($this->secretKey)) {
+            return app()->environment('local', 'testing');
         }
 
         try {

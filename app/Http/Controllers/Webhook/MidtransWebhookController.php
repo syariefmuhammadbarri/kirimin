@@ -36,6 +36,23 @@ class MidtransWebhookController extends Controller
         $paymentType = $payload['payment_type'] ?? null;
         $fraudStatus = $payload['fraud_status'] ?? null;
 
+        // Map Midtrans payment type to our enum
+        $paymentMethodMap = [
+            'credit_card' => 'transfer',
+            'bank_transfer' => 'transfer',
+            'echannel' => 'transfer',
+            'bca_klikpay' => 'transfer',
+            'bca_klikbca' => 'transfer',
+            'cimb_clicks' => 'transfer',
+            'gopay' => 'e-wallet',
+            'shopeepay' => 'e-wallet',
+            'qris' => 'e-wallet',
+            'indomaret' => 'cash',
+            'alfamart' => 'cash',
+            'akulaku' => 'transfer',
+        ];
+        $mappedPaymentMethod = $paymentMethodMap[$paymentType] ?? 'midtrans';
+
         // Find the payment record
         $payment = Payment::where('order_id', $orderId)->first();
         if (!$payment) {
@@ -49,7 +66,7 @@ class MidtransWebhookController extends Controller
             return response()->json(['message' => 'Shipment not found'], 404);
         }
 
-        DB::transaction(function () use ($payment, $shipment, $transactionStatus, $paymentType, $fraudStatus) {
+        DB::transaction(function () use ($payment, $shipment, $transactionStatus, $mappedPaymentMethod, $fraudStatus) {
             $status = 'pending';
             $shipmentStatus = $shipment->status;
 
@@ -75,7 +92,7 @@ class MidtransWebhookController extends Controller
             // Update payment record
             $payment->update([
                 'payment_status' => $status,
-                'payment_method' => $paymentType ?: 'midtrans',
+                'payment_method' => Payment::normalizePaymentMethod($mappedPaymentMethod),
             ]);
 
             // If payment was settled, update shipment status and create timeline tracking checkpoint

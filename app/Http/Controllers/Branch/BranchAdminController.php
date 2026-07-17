@@ -45,7 +45,7 @@ class BranchAdminController extends Controller
                       ->orWhere('origin_city', $branch->city);
             })
             ->latest()
-            ->get();
+            ->paginate(10);
 
         $couriers = User::role('kurir')
             ->where('branch_id', $branchId)

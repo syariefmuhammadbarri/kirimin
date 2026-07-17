@@ -71,8 +71,6 @@ class AuthController extends Controller
         // Create Customer profile
         Customer::create([
             'user_id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
             'phone' => $request->phone,
             'address' => $request->address,
             'city' => $request->city,

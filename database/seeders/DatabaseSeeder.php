@@ -131,12 +131,9 @@ class DatabaseSeeder extends Seeder
 
         Customer::create([
             'user_id' => $customerUser->id,
-            'name' => $customerUser->name,
-            'email' => $customerUser->email,
             'phone' => '081234567890',
             'address' => 'Jl. Jenderal Sudirman No. 25',
             'city' => 'Jakarta',
-            'email_verified_at' => now()
         ]);
 
         // 4. Create Rates
@@ -204,7 +201,10 @@ class DatabaseSeeder extends Seeder
             'type' => 'truck',
             'courier_id' => null
         ]);
-        // 7. Seed Landing Contents
+        // 7. Seed Transactional Sample Data
+        $this->call(ShipmentTransactionSeeder::class);
+
+        // 8. Seed Landing Contents
         // Hero Section
         LandingContent::create([
             'section' => 'hero',

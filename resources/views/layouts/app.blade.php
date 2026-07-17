@@ -20,17 +20,23 @@
     <style>
         body {
             font-family: 'Instrument Sans', sans-serif;
-            background-color: #ffffff;
+            background-color: #f8fafc;
             color: #1e293b;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+        }
+
+        .glass-panel {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+            border: 1px solid #dbeafe;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08);
         }
     </style>
     @yield('styles')
 </head>
 <body class="min-h-screen flex flex-col" data-lenis-prevent>
     <!-- Navbar / Header -->
-    <header id="main-header" class="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-200/60 transition-all duration-300">
+    <header id="main-header" class="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-blue-100/80 transition-all duration-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo -->
@@ -107,7 +113,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="border-t border-gray-200 py-8 text-center text-sm text-gray-500 mt-auto bg-white">
+    <footer class="border-t border-blue-100 py-8 text-center text-sm text-slate-600 mt-auto bg-white">
         <div class="max-w-7xl mx-auto px-4">
             <p>&copy; {{ date('Y') }} {{ config('app.name', 'Kirimin') }}. Dibuat untuk Tugas Praktek Pembuatan Aplikasi Web.</p>
         </div>

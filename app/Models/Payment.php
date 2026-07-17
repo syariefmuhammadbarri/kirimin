@@ -12,6 +12,60 @@ class Payment extends Model
 {
     use HasFactory;
 
+    public static function normalizePaymentMethod(?string $value): string
+    {
+        $normalized = strtolower(trim((string) $value));
+
+        $map = [
+            'transfer (mocked)' => 'transfer',
+            'transfer_mocked' => 'transfer',
+            'bank_transfer' => 'transfer',
+            'credit_card' => 'transfer',
+            'echannel' => 'transfer',
+            'bca_klikpay' => 'transfer',
+            'bca_klikbca' => 'transfer',
+            'cimb_clicks' => 'transfer',
+            'akulaku' => 'transfer',
+            'gopay' => 'e-wallet',
+            'shopeepay' => 'e-wallet',
+            'qris' => 'e-wallet',
+            'indomaret' => 'cash',
+            'alfamart' => 'cash',
+            'cash' => 'cash',
+            'transfer' => 'transfer',
+            'e-wallet' => 'e-wallet',
+            'ewallet' => 'e-wallet',
+            'midtrans' => 'midtrans',
+        ];
+
+        if (isset($map[$normalized])) {
+            return $map[$normalized];
+        }
+
+        if (str_contains($normalized, 'transfer')) {
+            return 'transfer';
+        }
+
+        if (str_contains($normalized, 'wallet') || str_contains($normalized, 'gopay') || str_contains($normalized, 'shopee') || str_contains($normalized, 'qris')) {
+            return 'e-wallet';
+        }
+
+        if (str_contains($normalized, 'cash') || str_contains($normalized, 'indomaret') || str_contains($normalized, 'alfamart')) {
+            return 'cash';
+        }
+
+        if (str_contains($normalized, 'midtrans')) {
+            return 'midtrans';
+        }
+
+        return 'transfer';
+    }
+
+    public function setPaymentMethodAttribute(?string $value): void
+    {
+        $this->attributes['payment_method'] = self::normalizePaymentMethod($value);
+    }
+
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);

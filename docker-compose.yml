@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. Aplikasi Laravel (PHP-FPM)
+  # 1. Aplikasi Laravel (PHP-FPM + Queue Worker)
   app:
     build:
       context: .
@@ -12,6 +12,17 @@ services:
     working_dir: /var/www
     volumes:
       - ./:/var/www
+      - ./docker/supervisor:/etc/supervisor/conf.d
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=ekspedisi_online
+      - DB_USERNAME=laraveluser
+      - DB_PASSWORD=secretpass
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=database
     depends_on:
       - db
       - redis
@@ -59,6 +70,17 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    networks:
+      - ekspedisi_network
+
+  # 5. Mailhog (Local SMTP for development)
+  mailhog:
+    image: mailhog/mailhog
+    container_name: ekspedisi_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     networks:
       - ekspedisi_network
 

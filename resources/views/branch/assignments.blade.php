@@ -3,10 +3,10 @@
 @section('styles')
 <style>
     .status-badge { @apply text-xs font-semibold px-2.5 py-1 rounded-full tracking-wide; }
-    .status-pending { @apply bg-yellow-50 text-yellow-700 border border-yellow-200; }
-    .status-assigned { @apply bg-blue-50 text-blue-700 border border-blue-200; }
-    .status-completed { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
-    .status-cancelled { @apply bg-red-50 text-red-700 border border-red-200; }
+    .status-pending { @apply bg-slate-100 text-slate-700 border border-slate-200; }
+    .status-assigned { @apply bg-slate-100 text-slate-700 border border-slate-200; }
+    .status-completed { @apply bg-slate-100 text-slate-700 border border-slate-200; }
+    .status-cancelled { @apply bg-slate-100 text-slate-700 border border-slate-200; }
 </style>
 @endsection
 
@@ -30,15 +30,15 @@
             <p class="text-xs text-slate-500 mt-1">Total Tugas</p>
         </div>
         <div class="card-panel rounded-xl p-5">
-            <p class="text-2xl font-bold text-blue-600">{{ $stats['active'] }}</p>
+            <p class="text-2xl font-bold text-slate-800">{{ $stats['active'] }}</p>
             <p class="text-xs text-slate-500 mt-1">Aktif</p>
         </div>
         <div class="card-panel rounded-xl p-5">
-            <p class="text-2xl font-bold text-emerald-600">{{ $stats['completed'] }}</p>
+            <p class="text-2xl font-bold text-slate-800">{{ $stats['completed'] }}</p>
             <p class="text-xs text-slate-500 mt-1">Selesai</p>
         </div>
         <div class="card-panel rounded-xl p-5">
-            <p class="text-2xl font-bold text-red-600">{{ $stats['cancelled'] }}</p>
+            <p class="text-2xl font-bold text-slate-800">{{ $stats['cancelled'] }}</p>
             <p class="text-xs text-slate-500 mt-1">Dibatalkan</p>
         </div>
     </div>
@@ -107,8 +107,8 @@
                 <div class="card-panel rounded-xl p-5">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                <span class="text-sm font-bold text-blue-600">{{ substr($courier->name, 0, 1) }}</span>
+                            <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+                                <span class="text-sm font-bold text-slate-700">{{ substr($courier->name, 0, 1) }}</span>
                             </div>
                             <div>
                                 <p class="font-semibold text-slate-900">{{ $courier->name }}</p>
@@ -118,12 +118,12 @@
                         @php
                             $activeJobs = $assignments->where('courier_id', $courier->id)->whereIn('status', ['pending', 'assigned'])->count();
                         @endphp
-                        <span class="text-xs font-semibold {{ $activeJobs >= 5 ? 'text-red-600' : 'text-emerald-600' }}">
+                        <span class="text-xs font-semibold {{ $activeJobs >= 5 ? 'text-slate-700' : 'text-slate-700' }}">
                             {{ $activeJobs }}/5 aktif
                         </span>
                     </div>
                     <div class="w-full bg-slate-100 rounded-full h-1.5">
-                        <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{ min(($activeJobs / 5) * 100, 100) }}%"></div>
+                        <div class="bg-slate-600 h-1.5 rounded-full" style="width: {{ min(($activeJobs / 5) * 100, 100) }}%"></div>
                     </div>
                 </div>
             @empty

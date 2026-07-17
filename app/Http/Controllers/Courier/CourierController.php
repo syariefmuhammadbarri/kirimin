@@ -21,7 +21,7 @@ class CourierController extends Controller
         $shipments = Shipment::with(['customer', 'payment'])
             ->where('courier_id', $courier->id)
             ->latest()
-            ->get();
+            ->paginate(10);
 
         $stats = [
             'total' => $shipments->count(),

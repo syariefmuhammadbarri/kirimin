@@ -5,8 +5,8 @@
     <div class="w-full max-w-lg p-8 rounded-2xl glass-panel shadow-2xl border border-slate-800/80">
         <!-- Header -->
         <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold tracking-tight text-white mb-2">Daftar Akun Baru</h1>
-            <p class="text-sm text-slate-400">Buat akun BAZMA Express Anda untuk memulai booking pengiriman</p>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 mb-2">Daftar Akun Baru</h1>
+            <p class="text-sm text-slate-600">Buat akun BAZMA Express Anda untuk memulai booking pengiriman</p>
         </div>
 
         <!-- Form -->
@@ -16,18 +16,18 @@
             <!-- Nama & Email (Two column layout on larger screens) -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                    <label for="name" class="block text-sm font-medium text-slate-300 mb-1.5">Nama Lengkap</label>
+                    <label for="name" class="block text-sm font-medium text-slate-700 mb-1.5">Nama Lengkap</label>
                     <input id="name" type="text" name="name" value="{{ old('name') }}" required autofocus
-                           class="w-full px-4 py-2.5 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
+                           class="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
                     @error('name')
                         <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
                     @enderror
                 </div>
 
                 <div>
-                    <label for="email" class="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
+                    <label for="email" class="block text-sm font-medium text-slate-700 mb-1.5">Email Address</label>
                     <input id="email" type="email" name="email" value="{{ old('email') }}" required
-                           class="w-full px-4 py-2.5 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
+                           class="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
                     @error('email')
                         <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
                     @enderror
@@ -37,36 +37,36 @@
             <!-- Password & Confirmation -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                    <label for="password" class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+                    <label for="password" class="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
                     <input id="password" type="password" name="password" required
-                           class="w-full px-4 py-2.5 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
+                           class="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
                     @error('password')
                         <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
                     @enderror
                 </div>
 
                 <div>
-                    <label for="password_confirmation" class="block text-sm font-medium text-slate-300 mb-1.5">Konfirmasi Password</label>
+                    <label for="password_confirmation" class="block text-sm font-medium text-slate-700 mb-1.5">Konfirmasi Password</label>
                     <input id="password_confirmation" type="password" name="password_confirmation" required
-                           class="w-full px-4 py-2.5 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
+                           class="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
                 </div>
             </div>
 
             <!-- Telepon & Kota -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                    <label for="phone" class="block text-sm font-medium text-slate-300 mb-1.5">Nomor Telepon / WA</label>
+                    <label for="phone" class="block text-sm font-medium text-slate-700 mb-1.5">Nomor Telepon / WA</label>
                     <input id="phone" type="text" name="phone" value="{{ old('phone') }}" required placeholder="Contoh: 0812345678"
-                           class="w-full px-4 py-2.5 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
+                           class="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
                     @error('phone')
                         <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
                     @enderror
                 </div>
 
                 <div>
-                    <label for="city" class="block text-sm font-medium text-slate-300 mb-1.5">Kota</label>
+                    <label for="city" class="block text-sm font-medium text-slate-700 mb-1.5">Kota</label>
                     <input id="city" type="text" name="city" value="{{ old('city') }}" required placeholder="Contoh: Jakarta"
-                           class="w-full px-4 py-2.5 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
+                           class="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">
                     @error('city')
                         <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
                     @enderror
@@ -75,9 +75,9 @@
 
             <!-- Alamat -->
             <div>
-                <label for="address" class="block text-sm font-medium text-slate-300 mb-1.5">Alamat Lengkap</label>
+                <label for="address" class="block text-sm font-medium text-slate-700 mb-1.5">Alamat Lengkap</label>
                 <textarea id="address" name="address" required rows="3"
-                          class="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">{{ old('address') }}</textarea>
+                          class="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm">{{ old('address') }}</textarea>
                 @error('address')
                     <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
                 @enderror
@@ -102,7 +102,7 @@
         <!-- Footer -->
         <div class="mt-6 text-center text-sm text-slate-400">
             Sudah punya akun? 
-            <a href="{{ route('login') }}" class="font-medium text-blue-400 hover:text-blue-300 transition">
+            <a href="{{ route('login') }}" class="font-medium text-blue-600 hover:text-blue-500 transition">
                 Masuk Di Sini
             </a>
         </div>

@@ -9,13 +9,10 @@ return new class extends Migration {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade');
-            $table->string('name');
-            $table->string('email')->unique();
             $table->string('phone');
             $table->text('address');
             $table->string('city');
             $table->string('photo_path')->nullable();
-            $table->timestamp('email_verified_at')->nullable();
             $table->timestamps();
         });
     }

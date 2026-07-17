@@ -80,11 +80,20 @@ class CustomerController extends Controller
     {
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
-        
+
+        if (!$customer) {
+            $customer = Customer::create([
+                'user_id' => $user->id,
+                'phone' => '',
+                'address' => '',
+                'city' => '',
+            ]);
+        }
+
         $shipments = Shipment::with('payment')
             ->where('customer_id', $customer->id)
             ->latest()
-            ->get();
+            ->paginate(10);
 
         return view('customer.dashboard', compact('shipments', 'customer'));
     }
@@ -136,6 +145,15 @@ class CustomerController extends Controller
 
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
+
+        if (!$customer) {
+            $customer = Customer::create([
+                'user_id' => $user->id,
+                'phone' => '',
+                'address' => '',
+                'city' => '',
+            ]);
+        }
 
         // Calculate total weight estimated
         $estimatedWeight = 0;
@@ -229,7 +247,7 @@ class CustomerController extends Controller
         // Enforce owner check
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
-        if ($shipment->customer_id !== $customer->id) {
+        if (!$customer || $shipment->customer_id !== $customer->id) {
             abort(403);
         }
 
@@ -255,7 +273,7 @@ class CustomerController extends Controller
     {
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
-        if ($shipment->customer_id !== $customer->id) {
+        if (!$customer || $shipment->customer_id !== $customer->id) {
             abort(403);
         }
 
@@ -267,7 +285,7 @@ class CustomerController extends Controller
         DB::transaction(function () use ($shipment, $payment) {
             $payment->update([
                 'payment_status' => 'paid',
-                'payment_method' => 'transfer (mocked)'
+                'payment_method' => Payment::normalizePaymentMethod('midtrans')
             ]);
 
             $shipment->update([
@@ -290,7 +308,7 @@ class CustomerController extends Controller
     {
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
-        if ($shipment->customer_id !== $customer->id) {
+        if (!$customer || $shipment->customer_id !== $customer->id) {
             abort(403);
         }
 

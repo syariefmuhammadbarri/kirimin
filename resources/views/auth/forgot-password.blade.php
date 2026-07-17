@@ -10,8 +10,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
             </div>
-            <h1 class="text-2xl font-bold tracking-tight text-white mb-2">Lupa Password?</h1>
-            <p class="text-sm text-slate-400">Masukkan email Anda dan kami akan mengirimkan tautan untuk reset password.</p>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 mb-2">Lupa Password?</h1>
+            <p class="text-sm text-slate-600">Masukkan email Anda dan kami akan mengirimkan tautan untuk reset password.</p>
         </div>
 
         @if (session('status'))
@@ -29,9 +29,9 @@
 
             <!-- Email -->
             <div>
-                <label for="email" class="block text-sm font-medium text-slate-300 mb-2">Alamat Email</label>
+                <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Alamat Email</label>
                 <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus
-                       class="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm"
+                       class="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm"
                        placeholder="nama@email.com">
                 @error('email')
                     <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
@@ -46,9 +46,9 @@
         </form>
 
         <!-- Back to Login -->
-        <div class="mt-6 text-center text-sm text-slate-400">
+        <div class="mt-6 text-center text-sm text-slate-600">
             Ingat password?
-            <a href="{{ route('login') }}" class="font-medium text-blue-400 hover:text-blue-300 transition">
+            <a href="{{ route('login') }}" class="font-medium text-blue-600 hover:text-blue-500 transition">
                 Kembali ke halaman masuk
             </a>
         </div>
