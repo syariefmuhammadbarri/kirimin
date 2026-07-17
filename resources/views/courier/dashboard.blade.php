@@ -9,7 +9,9 @@
     .status-payment_pending { @apply bg-orange-50 text-orange-700 border-orange-200; }
     .status-received_at_branch { @apply bg-indigo-50 text-indigo-700 border-indigo-200; }
     .status-assigned_to_courier { @apply bg-blue-50 text-blue-700 border-blue-200; }
+    .status-picked_up { @apply bg-indigo-50 text-indigo-700 border-indigo-200; }
     .status-out_for_delivery { @apply bg-cyan-50 text-cyan-700 border-cyan-200; }
+    .status-in_transit { @apply bg-sky-50 text-sky-700 border-sky-200; }
     .status-delivered { @apply bg-emerald-50 text-emerald-700 border-emerald-200; }
     .status-gagal_kirim { @apply bg-red-50 text-red-700 border-red-200; }
 </style>
@@ -31,7 +33,7 @@
         </div>
         <div class="card-panel rounded-xl p-5">
             <p class="text-3xl font-bold text-blue-600">{{ $stats['assigned'] }}</p>
-            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Ditugaskan</p>
+            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Ditugaskan / Pick Up</p>
         </div>
         <div class="card-panel rounded-xl p-5">
             <p class="text-3xl font-bold text-cyan-600">{{ $stats['transit'] }}</p>
@@ -45,7 +47,7 @@
 
     {{-- Active / Pending Deliveries --}}
     @php
-    $activeShipments = $shipments->whereIn('status', ['assigned_to_courier', 'out_for_delivery']);
+    $activeShipments = $shipments->whereIn('status', ['assigned_to_courier', 'picked_up', 'out_for_delivery']);
     $doneShipments = $shipments->whereIn('status', ['delivered', 'gagal_kirim']);
     @endphp
 
@@ -66,7 +68,9 @@
                         <p class="text-xs text-slate-400 mt-0.5">{{ $shipment->created_at->format('d M Y') }}</p>
                     </div>
                     <span class="text-xs font-semibold px-2.5 py-1 rounded-full border
-                        {{ $shipment->status === 'out_for_delivery' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-blue-50 text-blue-700 border-blue-200' }}">
+                        @if($shipment->status === 'out_for_delivery') bg-cyan-50 text-cyan-700 border-cyan-200
+                        @elseif($shipment->status === 'picked_up') bg-indigo-50 text-indigo-700 border-indigo-200
+                        @else bg-blue-50 text-blue-700 border-blue-200 @endif">
                         {{ str_replace('_',' ', $shipment->status) }}
                     </span>
                 </div>
@@ -89,6 +93,17 @@
                 {{-- Actions --}}
                 <div class="border-t border-black/5 pt-4">
                     @if($shipment->status === 'assigned_to_courier')
+                    <div class="flex gap-2">
+                        <form method="POST" action="{{ route('courier.pickup', $shipment) }}" class="flex-1">
+                            @csrf
+                            <button type="submit" class="w-full py-2.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition shadow-sm">
+                                📦 Pick Up Paket
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+
+                    @if($shipment->status === 'picked_up')
                     <div class="flex gap-2">
                         <form method="POST" action="{{ route('courier.out-for-delivery', $shipment) }}" class="flex-1">
                             @csrf

@@ -18,7 +18,7 @@ class RecaptchaMiddleware
 
     public function handle(Request $request, Closure $next): Response
     {
-        if (filter_var(env('RECAPTCHA_ENABLED', false), FILTER_VALIDATE_BOOLEAN)) {
+        if (filter_var(config('services.recaptcha.enabled', false), FILTER_VALIDATE_BOOLEAN)) {
             $token = $request->input('g-recaptcha-response');
             
             if (!$this->recaptcha->verify($token, $request->ip())) {

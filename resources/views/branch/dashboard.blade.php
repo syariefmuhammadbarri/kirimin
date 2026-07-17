@@ -8,7 +8,9 @@
     .status-weighed { @apply bg-blue-950/60 text-blue-400 border-blue-800/50; }
     .status-payment_pending { @apply bg-orange-950/60 text-orange-400 border-orange-800/50; }
     .status-received_at_branch { @apply bg-indigo-950/60 text-indigo-400 border-indigo-800/50; }
+    .status-in_transit { @apply bg-sky-950/60 text-sky-400 border-sky-800/50; }
     .status-assigned_to_courier { @apply bg-violet-950/60 text-violet-400 border-violet-800/50; }
+    .status-picked_up { @apply bg-purple-950/60 text-purple-400 border-purple-800/50; }
     .status-out_for_delivery { @apply bg-cyan-950/60 text-cyan-400 border-cyan-800/50; }
     .status-delivered { @apply bg-emerald-950/60 text-emerald-400 border-emerald-800/50; }
     .status-gagal_kirim { @apply bg-red-950/60 text-red-400 border-red-800/50; }
@@ -120,8 +122,18 @@
                                 </form>
                                 @endif
 
+                                {{-- Kirim Transit --}}
+                                @if(in_array($shipment->status, ['received_at_branch', 'weighed']) && $shipment->payment && $shipment->payment->payment_status === 'paid' && strtolower($shipment->destination_city) !== strtolower($branch->city))
+                                <form method="POST" action="{{ route('branch.send-transit', $shipment) }}" onsubmit="return confirm('Kirim paket ini via transit?')">
+                                    @csrf
+                                    <button class="text-xs bg-sky-700/70 hover:bg-sky-700 text-sky-100 px-2.5 py-1.5 rounded transition">
+                                        Kirim Transit
+                                    </button>
+                                </form>
+                                @endif
+
                                 {{-- Assign Courier --}}
-                                @if($shipment->status === 'received_at_branch')
+                                @if($shipment->status === 'received_at_branch' && strtolower($shipment->destination_city) === strtolower($branch->city))
                                 <button onclick="openAssignModal({{ $shipment->id }}, '{{ $shipment->tracking_number }}')"
                                         class="text-xs bg-violet-700/70 hover:bg-violet-700 text-violet-100 px-2.5 py-1.5 rounded transition">
                                     Tugaskan Kurir

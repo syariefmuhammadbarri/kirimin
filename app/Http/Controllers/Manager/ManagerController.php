@@ -23,27 +23,49 @@ class ManagerController extends Controller
         $this->reportService = $reportService;
     }
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        // Apply filters
+        $paymentQuery = Payment::query();
+        $shipmentQuery = Shipment::query();
+
+        if ($startDate) {
+            $paymentQuery->whereDate('created_at', '>=', $startDate);
+            $shipmentQuery->whereDate('created_at', '>=', $startDate);
+        }
+        if ($endDate) {
+            $paymentQuery->whereDate('created_at', '<=', $endDate);
+            $shipmentQuery->whereDate('created_at', '<=', $endDate);
+        }
+
+        // Optimize status counts in 1 query
+        $statusCounts = (clone $shipmentQuery)->groupBy('status')
+            ->select('status', DB::raw('count(*) as count'))
+            ->pluck('count', 'status')
+            ->toArray();
+
         // System-wide statistics
         $stats = [
             'total_branches' => Branch::count(),
             'total_employees' => User::role(['admin_cabang', 'kurir'])->count(),
-            'total_shipments' => Shipment::count(),
-            'total_revenue' => Payment::where('payment_status', 'paid')->sum('amount'),
+            'total_shipments' => (clone $shipmentQuery)->count(),
+            'total_revenue' => (clone $paymentQuery)->where('payment_status', 'paid')->sum('amount'),
             
             // Status counts
-            'booking_created' => Shipment::where('status', 'booking_created')->count(),
-            'waiting_dropoff' => Shipment::where('status', 'waiting_dropoff')->count(),
-            'weighed' => Shipment::where('status', 'weighed')->count(),
-            'assigned' => Shipment::where('status', 'assigned_to_courier')->count(),
-            'transit' => Shipment::where('status', 'out_for_delivery')->count(),
-            'delivered' => Shipment::where('status', 'delivered')->count(),
-            'failed' => Shipment::where('status', 'gagal_kirim')->count(),
+            'booking_created' => $statusCounts['booking_created'] ?? 0,
+            'waiting_dropoff' => $statusCounts['waiting_dropoff'] ?? 0,
+            'weighed' => $statusCounts['weighed'] ?? 0,
+            'assigned' => $statusCounts['assigned_to_courier'] ?? 0,
+            'transit' => $statusCounts['out_for_delivery'] ?? 0,
+            'delivered' => $statusCounts['delivered'] ?? 0,
+            'failed' => $statusCounts['gagal_kirim'] ?? 0,
         ];
 
         // Fetch monthly revenue trend data for charts
-        $monthlyRevenue = Payment::select(
+        $monthlyRevenue = (clone $paymentQuery)->select(
             DB::raw('SUM(amount) as total'),
             DB::raw("DATE_FORMAT(created_at, '%Y-%m') as month")
         )
@@ -191,12 +213,27 @@ class ManagerController extends Controller
 
     // --- REPORTS ---
 
-    public function downloadReport()
+    public function downloadReport(Request $request)
     {
-        $shipments = Shipment::with(['payment'])->get();
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        $paymentQuery = Payment::query();
+        $shipmentQuery = Shipment::query();
+
+        if ($startDate) {
+            $paymentQuery->whereDate('created_at', '>=', $startDate);
+            $shipmentQuery->whereDate('created_at', '>=', $startDate);
+        }
+        if ($endDate) {
+            $paymentQuery->whereDate('created_at', '<=', $endDate);
+            $shipmentQuery->whereDate('created_at', '<=', $endDate);
+        }
+
+        $shipments = (clone $shipmentQuery)->with(['payment'])->get();
 
         $metrics = [
-            'total_revenue' => Payment::where('payment_status', 'paid')->sum('amount'),
+            'total_revenue' => (clone $paymentQuery)->where('payment_status', 'paid')->sum('amount'),
             'total_shipments' => $shipments->count(),
             'delivery_success_rate' => $shipments->count() > 0 
                 ? ($shipments->where('status', 'delivered')->count() / $shipments->count()) * 100 
@@ -206,25 +243,42 @@ class ManagerController extends Controller
             'status_distribution' => $shipments->groupBy('status')->map->count()->toArray()
         ];
 
-        // Branch breakdown
+        // Branch breakdown - OPTIMIZED
+        $branchRevenues = Shipment::join('payments', 'shipments.payment_id', '=', 'payments.id')
+            ->where('payments.payment_status', 'paid')
+            ->when($startDate, fn($q) => $q->whereDate('payments.created_at', '>=', $startDate))
+            ->when($endDate, fn($q) => $q->whereDate('payments.created_at', '<=', $endDate))
+            ->groupBy('shipments.branch_id')
+            ->select('shipments.branch_id', DB::raw('SUM(payments.amount) as revenue'))
+            ->pluck('revenue', 'branch_id');
+
         $branches = Branch::all();
         foreach ($branches as $branch) {
-            $branchShipments = Shipment::where('branch_id', $branch->id)->get();
+            $branchShipmentsCount = (clone $shipmentQuery)->where('branch_id', $branch->id)->count();
             $metrics['branches'][] = [
                 'name' => $branch->name,
-                'shipments_count' => $branchShipments->count(),
-                'revenue' => Shipment::where('branch_id', $branch->id)
-                    ->join('payments', 'shipments.payment_id', '=', 'payments.id')
-                    ->where('payments.payment_status', 'paid')
-                    ->sum('payments.amount'),
+                'shipments_count' => $branchShipmentsCount,
+                'revenue' => $branchRevenues[$branch->id] ?? 0,
             ];
         }
 
-        // Courier breakdown
+        // Courier breakdown - OPTIMIZED
+        $courierJobs = Shipment::groupBy('courier_id')
+            ->when($startDate, fn($q) => $q->whereDate('created_at', '>=', $startDate))
+            ->when($endDate, fn($q) => $q->whereDate('created_at', '<=', $endDate))
+            ->select(
+                'courier_id',
+                DB::raw('count(*) as total_jobs'),
+                DB::raw('SUM(case when status = "delivered" then 1 else 0 end) as delivered_jobs')
+            )
+            ->get()
+            ->keyBy('courier_id');
+
         $couriers = User::role('kurir')->with('branch')->get();
         foreach ($couriers as $courier) {
-            $totalJobs = Shipment::where('courier_id', $courier->id)->count();
-            $deliveredJobs = Shipment::where('courier_id', $courier->id)->where('status', 'delivered')->count();
+            $jobsInfo = $courierJobs->get($courier->id);
+            $totalJobs = $jobsInfo ? $jobsInfo->total_jobs : 0;
+            $deliveredJobs = $jobsInfo ? $jobsInfo->delivered_jobs : 0;
             $metrics['couriers'][] = [
                 'name' => $courier->name,
                 'branch_name' => $courier->branch->name ?? 'Gudang Utama',

@@ -73,11 +73,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/receipt/{shipment}', [BranchAdminController::class, 'printReceipt'])->name('receipt');
         Route::get('/assignments', [BranchAdminController::class, 'viewAssignments'])->name('assignments');
         Route::get('/reports', [BranchAdminController::class, 'downloadBranchReport'])->name('reports');
+        Route::post('/send-transit/{shipment}', [BranchAdminController::class, 'sendTransit'])->name('send-transit');
+        Route::post('/receive-transit/{shipment}', [BranchAdminController::class, 'receiveTransit'])->name('receive-transit');
     });
 
     // Courier Role
     Route::middleware('role:kurir')->prefix('courier')->name('courier.')->group(function () {
         Route::get('/dashboard', [CourierController::class, 'dashboard'])->name('dashboard');
+        Route::post('/pickup/{shipment}', [CourierController::class, 'pickUp'])->name('pickup');
         Route::post('/out-for-delivery/{shipment}', [CourierController::class, 'outForDelivery'])->name('out-for-delivery');
         Route::post('/deliver/{shipment}', [CourierController::class, 'deliver'])->name('deliver');
         Route::post('/fail/{shipment}', [CourierController::class, 'failDelivery'])->name('fail');

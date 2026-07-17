@@ -12,8 +12,8 @@ class RecaptchaService
 
     public function __construct()
     {
-        $this->secretKey = config('services.recaptcha.secret_key') ?: env('RECAPTCHA_SECRET_KEY');
-        $this->enabled = filter_var(env('RECAPTCHA_ENABLED', false), FILTER_VALIDATE_BOOLEAN);
+        $this->secretKey = config('services.recaptcha.secret_key');
+        $this->enabled = filter_var(config('services.recaptcha.enabled', false), FILTER_VALIDATE_BOOLEAN);
     }
 
     public function verify(?string $token, ?string $ip = null): bool

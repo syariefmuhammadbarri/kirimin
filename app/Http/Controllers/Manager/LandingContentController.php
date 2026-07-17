@@ -17,7 +17,7 @@ class LandingContentController extends Controller
 
     public function create()
     {
-        $sections = ['hero', 'features', 'about', 'services', 'testimonials', 'contact', 'footer'];
+        $sections = ['hero', 'promo', 'features', 'about', 'services', 'testimonials', 'contact', 'footer'];
         return view('manager.landing-contents.create', compact('sections'));
     }
 
@@ -40,7 +40,7 @@ class LandingContentController extends Controller
 
     public function edit(LandingContent $landingContent)
     {
-        $sections = ['hero', 'features', 'about', 'services', 'testimonials', 'contact', 'footer'];
+        $sections = ['hero', 'promo', 'features', 'about', 'services', 'testimonials', 'contact', 'footer'];
         return view('manager.landing-contents.edit', compact('landingContent', 'sections'));
     }
 

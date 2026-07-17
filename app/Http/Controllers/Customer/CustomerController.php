@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\LandingContent;
 use App\Models\Payment;
 use App\Models\Rate;
 use App\Models\Shipment;
@@ -41,7 +42,11 @@ class CustomerController extends Controller
     {
         $branches = \App\Models\Branch::all();
         $cities = Rate::select('origin_city')->distinct()->pluck('origin_city');
-        return view('landing', compact('branches', 'cities'));
+        $landingContents = LandingContent::where('is_active', true)
+            ->orderBy('order')
+            ->get()
+            ->groupBy('section');
+        return view('landing', compact('branches', 'cities', 'landingContents'));
     }
 
     public function calculator()

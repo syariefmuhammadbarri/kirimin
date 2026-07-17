@@ -58,7 +58,7 @@ class BranchAdminController extends Controller
             'weighed' => $shipments->where('status', 'weighed')->count(),
             'received' => $shipments->where('status', 'received_at_branch')->count(),
             'assigned' => $shipments->where('status', 'assigned_to_courier')->count(),
-            'transit' => $shipments->where('status', 'out_for_delivery')->count(),
+            'transit' => $shipments->whereIn('status', ['in_transit', 'picked_up', 'out_for_delivery'])->count(),
             'delivered' => $shipments->where('status', 'delivered')->count(),
         ];
 
@@ -120,34 +120,47 @@ class BranchAdminController extends Controller
 
             $oldPrice = $shipment->total_price;
             $newPrice = $rateDetails['total_price'];
-
-            // Update shipment
-            $shipment->update([
-                'actual_weight' => $actualWeight,
-                'actual_price' => $newPrice,
-                'total_price' => $newPrice,
-                'status' => 'weighed',
-                'branch_id' => $branch->id,
-            ]);
-
-            // If price is different, update payment amount
             $payment = $shipment->payment;
+            
+            $status = 'weighed';
+
             if ($payment) {
                 $payment->update(['amount' => $newPrice]);
 
                 if ($newPrice > $oldPrice && $payment->payment_status === 'paid') {
                     // Payment needs upgrade/re-pay difference
                     $payment->update(['payment_status' => 'pending']);
-                    $shipment->update(['status' => 'payment_pending']);
+                    $status = 'payment_pending';
+                } elseif ($payment->payment_status === 'paid') {
+                    // Already paid and price is same or cheaper
+                    $status = 'received_at_branch';
                 }
+            }
+
+            // Update shipment
+            $shipment->update([
+                'actual_weight' => $actualWeight,
+                'actual_price' => $newPrice,
+                'total_price' => $newPrice,
+                'status' => $status,
+                'branch_id' => $branch->id,
+            ]);
+
+            // Set tracking description based on status
+            if ($status === 'received_at_branch') {
+                $desc = "Paket ditimbang di outlet {$branch->name}. Berat Aktual: {$actualWeight} kg. Pembayaran lunas, paket masuk gudang cabang.";
+            } elseif ($status === 'payment_pending') {
+                $desc = "Paket ditimbang di outlet {$branch->name}. Berat Aktual: {$actualWeight} kg. Ada selisih tarif yang harus dibayar, menunggu kekurangan pembayaran.";
+            } else {
+                $desc = "Paket ditimbang di outlet {$branch->name}. Berat Aktual: {$actualWeight} kg. Catatan: " . ($request->notes ?: '-');
             }
 
             // Create tracking update
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => "Paket ditimbang di outlet {$branch->name}. Berat Aktual: {$actualWeight} kg. Catatan: " . ($request->notes ?: '-'),
-                'status' => 'weighed',
+                'description' => $desc,
+                'status' => $status,
                 'tracked_at' => now(),
             ]);
         });
@@ -336,5 +349,54 @@ class BranchAdminController extends Controller
 
         $pdf = $this->reportService->generateStrategicReport($metrics);
         return $pdf->download('laporan-cabang-' . str_replace(' ', '-', strtolower($branch->name)) . '.pdf');
+    }
+
+    public function sendTransit(Shipment $shipment)
+    {
+        $admin = Auth::user();
+        $branch = Branch::findOrFail($admin->branch_id);
+
+        if (!in_array($shipment->status, ['received_at_branch', 'weighed'])) {
+            return back()->with('error', 'Status paket tidak valid untuk dikirim transit.');
+        }
+
+        DB::transaction(function () use ($shipment, $branch) {
+            $shipment->update([
+                'status' => 'in_transit'
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location' => $branch->city,
+                'description' => "Paket diberangkatkan dari Cabang {$branch->name} (transit) menuju kota tujuan {$shipment->destination_city}.",
+                'status' => 'in_transit',
+                'tracked_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Paket berhasil dikirim (Transit).');
+    }
+
+    public function receiveTransit(Shipment $shipment)
+    {
+        $admin = Auth::user();
+        $branch = Branch::findOrFail($admin->branch_id);
+
+        DB::transaction(function () use ($shipment, $branch) {
+            $shipment->update([
+                'status' => 'received_at_branch',
+                'branch_id' => $branch->id
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location' => $branch->city,
+                'description' => "Paket transit telah tiba dan diterima di Cabang {$branch->name}.",
+                'status' => 'received_at_branch',
+                'tracked_at' => now(),
+            ]);
+        });
+
+        return redirect()->route('branch.dashboard')->with('success', 'Paket transit berhasil diterima di cabang ini.');
     }
 }

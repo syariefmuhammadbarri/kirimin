@@ -167,6 +167,26 @@
             </div>
             @endif
 
+            {{-- Receive Transit Button --}}
+            @if($shipment->status === 'in_transit' && strtolower($shipment->destination_city) === strtolower($branch->city))
+            <div class="glass-panel rounded-2xl border border-blue-900/30 p-5">
+                <h2 class="text-base font-semibold text-white mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    Terima Paket Transit
+                </h2>
+                <p class="text-sm text-slate-400 mb-4">
+                    Paket transit ini ditujukan ke kota Anda. Konfirmasi kedatangan paket di cabang tujuan.
+                </p>
+                <form method="POST" action="{{ route('branch.receive-transit', $shipment) }}" onsubmit="return confirm('Terima paket ini di cabang {{ $branch->name }}?')">
+                    @csrf
+                    <button type="submit"
+                            class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition">
+                        ✓ Konfirmasi Terima Paket Transit
+                    </button>
+                </form>
+            </div>
+            @endif
+
             {{-- Already processed --}}
             @if(in_array($shipment->status, ['received_at_branch', 'assigned_to_courier', 'out_for_delivery', 'delivered']))
             <div class="glass-panel rounded-2xl border border-slate-700 p-5 text-center">

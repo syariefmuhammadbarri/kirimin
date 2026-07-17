@@ -25,13 +25,40 @@ class CourierController extends Controller
 
         $stats = [
             'total' => $shipments->count(),
-            'assigned' => $shipments->where('status', 'assigned_to_courier')->count(),
+            'assigned' => $shipments->whereIn('status', ['assigned_to_courier', 'picked_up'])->count(),
             'transit' => $shipments->where('status', 'out_for_delivery')->count(),
             'delivered' => $shipments->where('status', 'delivered')->count(),
             'failed' => $shipments->where('status', 'gagal_kirim')->count(),
         ];
 
         return view('courier.dashboard', compact('shipments', 'stats'));
+    }
+
+    public function pickUp(Shipment $shipment)
+    {
+        $courier = Auth::user();
+        if ($shipment->courier_id !== $courier->id) {
+            abort(403);
+        }
+
+        DB::transaction(function () use ($shipment, $courier) {
+            $branch = Branch::find($courier->branch_id);
+            $location = $branch ? $branch->city : $shipment->origin_city;
+
+            $shipment->update([
+                'status' => 'picked_up'
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location' => $location,
+                'description' => "Paket telah diambil (pickup) dari cabang " . ($branch ? $branch->name : 'asal') . " oleh Kurir {$courier->name}.",
+                'status' => 'picked_up',
+                'tracked_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Paket berhasil diambil (Picked Up).');
     }
 
     public function outForDelivery(Shipment $shipment)

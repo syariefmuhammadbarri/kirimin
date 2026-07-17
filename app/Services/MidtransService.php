@@ -10,8 +10,8 @@ class MidtransService
 {
     public function getSnapToken(Shipment $shipment): string
     {
-        $serverKey = env('MIDTRANS_SERVER_KEY');
-        $mockMode = filter_var(env('MIDTRANS_MOCK_MODE', true), FILTER_VALIDATE_BOOLEAN);
+        $serverKey = config('services.midtrans.server_key');
+        $mockMode = filter_var(config('services.midtrans.mock_mode', true), FILTER_VALIDATE_BOOLEAN);
 
         if ($mockMode || empty($serverKey) || $serverKey === 'mock_server_key') {
             Log::info("Midtrans in mock mode. Returning mock snap token for: " . $shipment->tracking_number);
@@ -20,9 +20,9 @@ class MidtransService
 
         try {
             \Midtrans\Config::$serverKey = $serverKey;
-            \Midtrans\Config::$isProduction = filter_var(env('MIDTRANS_IS_PRODUCTION', false), FILTER_VALIDATE_BOOLEAN);
-            \Midtrans\Config::$isSanitized = filter_var(env('MIDTRANS_IS_SANITIZED', true), FILTER_VALIDATE_BOOLEAN);
-            \Midtrans\Config::$is3ds = filter_var(env('MIDTRANS_IS_3DS', true), FILTER_VALIDATE_BOOLEAN);
+            \Midtrans\Config::$isProduction = filter_var(config('services.midtrans.is_production', false), FILTER_VALIDATE_BOOLEAN);
+            \Midtrans\Config::$isSanitized = filter_var(config('services.midtrans.is_sanitized', true), FILTER_VALIDATE_BOOLEAN);
+            \Midtrans\Config::$is3ds = filter_var(config('services.midtrans.is_3ds', true), FILTER_VALIDATE_BOOLEAN);
 
             $customerEmail = $shipment->customer->email ?? 'customer@ekspedisi.com';
 
@@ -68,7 +68,7 @@ class MidtransService
 
     public function verifyWebhookSignature(array $payload): bool
     {
-        $serverKey = env('MIDTRANS_SERVER_KEY');
+        $serverKey = config('services.midtrans.server_key');
         if (empty($serverKey) || $serverKey === 'mock_server_key') {
             return true; // Auto-pass in mock mode
         }

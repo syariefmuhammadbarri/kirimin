@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\LandingContent;
 use App\Models\Rate;
 use App\Models\Setting;
 use App\Models\User;
@@ -202,6 +203,88 @@ class DatabaseSeeder extends Seeder
             'plate_number' => 'B 9999 TRK',
             'type' => 'truck',
             'courier_id' => null
+        ]);
+        // 7. Seed Landing Contents
+        // Hero Section
+        LandingContent::create([
+            'section' => 'hero',
+            'title' => 'Kirim Paket Lebih Cepat & Hemat',
+            'content' => 'Booking pengiriman online, bayar cashless, dan serahkan ke outlet terdekat dalam waktu kurang dari 3 menit tanpa antre panjang.',
+            'image' => null,
+            'order' => 1,
+            'is_active' => true,
+        ]);
+
+        // Promo Section items
+        LandingContent::create([
+            'section' => 'promo',
+            'title' => 'Free Ongkir',
+            'content' => 'Gratis ongkos kirim untuk pelanggan baru pertama kali booking. Syarat & ketentuan berlaku.',
+            'image' => null,
+            'order' => 1,
+            'is_active' => true,
+        ]);
+        LandingContent::create([
+            'section' => 'promo',
+            'title' => 'Diskon 20%',
+            'content' => 'Hemat 20% untuk pengiriman reguler ke seluruh kota setiap hari Selasa dan Rabu.',
+            'image' => null,
+            'order' => 2,
+            'is_active' => true,
+        ]);
+        LandingContent::create([
+            'section' => 'promo',
+            'title' => 'Flash Delivery',
+            'content' => 'Layanan ekspres same-day untuk pengiriman dalam kota. Jaminan tiba hari ini.',
+            'image' => null,
+            'order' => 3,
+            'is_active' => true,
+        ]);
+
+        // Features Section items
+        LandingContent::create([
+            'section' => 'features',
+            'title' => 'Lacak Paket Real-time',
+            'content' => 'Pantau posisi paket Anda secara real-time dari cabang asal hingga diterima penerima.',
+            'image' => null,
+            'order' => 1,
+            'is_active' => true,
+        ]);
+        LandingContent::create([
+            'section' => 'features',
+            'title' => 'Kalkulator Ongkir',
+            'content' => 'Hitung estimasi biaya pengiriman secara instan sebelum booking. Tanpa biaya tersembunyi.',
+            'image' => null,
+            'order' => 2,
+            'is_active' => true,
+        ]);
+        LandingContent::create([
+            'section' => 'features',
+            'title' => 'Jaringan Luas',
+            'content' => 'Didukung cabang di berbagai kota besar Indonesia. Cepat, aman, dan terpercaya.',
+            'image' => null,
+            'order' => 3,
+            'is_active' => true,
+        ]);
+
+        // About Section
+        LandingContent::create([
+            'section' => 'about',
+            'title' => 'Tentang Kirimin Express',
+            'content' => 'Kirimin Express adalah layanan ekspedisi terpercaya yang melayani pengiriman ke seluruh Indonesia. Dengan teknologi modern dan jaringan cabang yang luas, kami memastikan setiap paket sampai dengan aman, tepat waktu, dan dengan harga terjangkau.',
+            'image' => null,
+            'order' => 1,
+            'is_active' => true,
+        ]);
+
+        // Contact Section
+        LandingContent::create([
+            'section' => 'contact',
+            'title' => 'Hubungi Kami',
+            'content' => 'Ada pertanyaan? Tim CS kami siap membantu 24/7 melalui WhatsApp, email, atau kunjungi cabang terdekat.',
+            'image' => null,
+            'order' => 1,
+            'is_active' => true,
         ]);
     }
 }
