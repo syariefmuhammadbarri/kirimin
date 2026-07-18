@@ -17,6 +17,7 @@ class CourierAssignment extends Model
         'assigned_at',
         'status',
         'notes',
+        'type',
     ];
 
     protected $casts = [

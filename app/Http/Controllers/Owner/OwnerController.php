@@ -84,7 +84,9 @@ class OwnerController extends Controller
             ->select('shipments.customer_id', DB::raw('SUM(payments.amount) as total_spent'))
             ->pluck('total_spent', 'customer_id');
 
-        $topCustomers = Customer::select('customers.id', 'customers.name', 'customers.email')
+        $topCustomers = Customer::query()
+            ->join('users', 'users.id', '=', 'customers.user_id')
+            ->select('customers.id', 'users.name', 'users.email')
             ->withCount(['shipments' => function ($q) use ($startDate, $endDate) {
                 $q->when($startDate, fn($query) => $query->whereDate('created_at', '>=', $startDate))
                   ->when($endDate, fn($query) => $query->whereDate('created_at', '<=', $endDate));

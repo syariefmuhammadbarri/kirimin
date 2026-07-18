@@ -75,13 +75,13 @@ class MidtransWebhookController extends Controller
                     $status = 'pending';
                 } else if ($fraudStatus == 'accept') {
                     $status = 'paid';
-                    $shipmentStatus = 'waiting_dropoff';
+                    $shipmentStatus = $shipment->fulfillment_type === 'pickup' ? 'pickup_scheduled' : 'waiting_dropoff';
                 }
             } else if ($transactionStatus == 'settlement') {
                 $status = 'paid';
-                // If weight was already adjusted, keeping it as weighed, else waiting_dropoff
+                // If weight was already adjusted, keeping it as weighed, else waiting_dropoff or pickup_scheduled
                 if ($shipmentStatus === 'booking_created' || $shipmentStatus === 'payment_pending') {
-                    $shipmentStatus = 'waiting_dropoff';
+                    $shipmentStatus = $shipment->fulfillment_type === 'pickup' ? 'pickup_scheduled' : 'waiting_dropoff';
                 }
             } else if (in_array($transactionStatus, ['cancel', 'deny', 'expire'])) {
                 $status = 'failed';
@@ -99,12 +99,16 @@ class MidtransWebhookController extends Controller
             if ($status === 'paid') {
                 $shipment->update(['status' => $shipmentStatus]);
 
+                $description = $shipment->fulfillment_type === 'pickup'
+                    ? 'Pembayaran lunas via Midtrans. Menunggu penjemputan oleh kurir.'
+                    : 'Pembayaran lunas via Midtrans. Status berubah menjadi Siap Drop-Off.';
+
                 // Create tracking timeline update
                 ShipmentTracking::create([
                     'shipment_id' => $shipment->id,
                     'location' => $shipment->origin_city,
-                    'description' => 'Pembayaran lunas via Midtrans. Status berubah menjadi Siap Drop-Off.',
-                    'status' => 'waiting_dropoff',
+                    'description' => $description,
+                    'status' => $shipmentStatus,
                     'tracked_at' => now(),
                 ]);
 

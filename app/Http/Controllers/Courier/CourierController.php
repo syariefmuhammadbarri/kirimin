@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\CourierAssignment;
 use App\Models\DeliveryProof;
 use App\Models\Shipment;
 use App\Models\ShipmentTracking;
@@ -18,18 +19,21 @@ class CourierController extends Controller
     {
         $courier = Auth::user();
         
-        $shipments = Shipment::with(['customer', 'payment'])
-            ->where('courier_id', $courier->id)
-            ->latest()
-            ->paginate(10);
+        $query = Shipment::with(['customer', 'payment'])
+            ->where('courier_id', $courier->id);
+
+        $allShipments = (clone $query)->get();
 
         $stats = [
-            'total' => $shipments->count(),
-            'assigned' => $shipments->whereIn('status', ['assigned_to_courier', 'picked_up'])->count(),
-            'transit' => $shipments->where('status', 'out_for_delivery')->count(),
-            'delivered' => $shipments->where('status', 'delivered')->count(),
-            'failed' => $shipments->where('status', 'gagal_kirim')->count(),
+            'total'     => $allShipments->count(),
+            'pickup'    => $allShipments->whereIn('status', ['pickup_assigned', 'picked_up_from_customer'])->count(),
+            'assigned'  => $allShipments->whereIn('status', ['assigned_to_courier', 'picked_up'])->count(),
+            'transit'   => $allShipments->where('status', 'out_for_delivery')->count(),
+            'delivered' => $allShipments->where('status', 'delivered')->count(),
+            'failed'    => $allShipments->where('status', 'gagal_kirim')->count(),
         ];
+
+        $shipments = $query->latest()->paginate(10);
 
         return view('courier.dashboard', compact('shipments', 'stats'));
     }
@@ -167,5 +171,66 @@ class CourierController extends Controller
         });
 
         return redirect()->route('courier.dashboard')->with('success', 'Paket ditandai sebagai Gagal Kirim.');
+    }
+
+    public function collectFromCustomer(Shipment $shipment)
+    {
+        $courier = Auth::user();
+        if ($shipment->courier_id !== $courier->id) {
+            abort(403);
+        }
+        if ($shipment->status !== 'pickup_assigned') {
+            return back()->with('error', 'Status paket tidak valid untuk konfirmasi penjemputan.');
+        }
+
+        DB::transaction(function () use ($shipment, $courier) {
+            $shipment->update(['status' => 'picked_up_from_customer']);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location' => $shipment->origin_city,
+                'description' => "Paket berhasil dijemput oleh Kurir {$courier->name} dari alamat pengirim.",
+                'status' => 'picked_up_from_customer',
+                'tracked_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Paket berhasil dikonfirmasi dijemput dari customer.');
+    }
+
+    public function dropAtBranch(Shipment $shipment)
+    {
+        $courier = Auth::user();
+        if ($shipment->courier_id !== $courier->id) {
+            abort(403);
+        }
+        if ($shipment->status !== 'picked_up_from_customer') {
+            return back()->with('error', 'Status paket tidak valid.');
+        }
+
+        DB::transaction(function () use ($shipment, $courier) {
+            $branch = Branch::find($courier->branch_id);
+
+            $shipment->update([
+                'status' => 'received_at_branch',
+                'courier_id' => null, // lepas assignment pickup, siap di-assign ulang untuk delivery/transit
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location' => $branch?->city ?? $shipment->origin_city,
+                'description' => "Paket hasil penjemputan telah diserahkan Kurir {$courier->name} ke Cabang {$branch?->name}.",
+                'status' => 'received_at_branch',
+                'tracked_at' => now(),
+            ]);
+
+            // Tandai assignment pickup sebagai selesai
+            CourierAssignment::where('shipment_id', $shipment->id)
+                ->where('type', 'pickup')
+                ->whereIn('status', ['pending', 'assigned'])
+                ->update(['status' => 'completed']);
+        });
+
+        return redirect()->route('courier.dashboard')->with('success', 'Paket berhasil diserahkan ke cabang.');
     }
 }

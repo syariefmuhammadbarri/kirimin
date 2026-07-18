@@ -177,6 +177,76 @@
                 </div>
                 @error('service_type')<p class="form-error">{{ $message }}</p>@enderror
             </div>
+
+            <!-- Fulfillment Type Selection -->
+            <div class="mt-6 pt-6 border-t border-slate-100">
+                <label class="form-label">Metode Penyerahan Paket <span class="text-red-500">*</span></label>
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Dropoff -->
+                    <label class="relative cursor-pointer service-label">
+                        <input type="radio" name="fulfillment_type" value="dropoff" x-model="fulfillmentType" class="sr-only peer">
+                        <div class="service-card" :class="{ 'selected': fulfillmentType === 'dropoff' }">
+                            <div class="check-icon">
+                                <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                            <div class="service-icon">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                </svg>
+                            </div>
+                            <div class="font-semibold text-slate-900 text-sm">Drop-off</div>
+                            <div class="text-xs text-slate-500 mt-1">Antar sendiri paket ke outlet terdekat</div>
+                            <div class="text-xs text-blue-600 font-medium mt-2 opacity-0" :class="{ 'opacity-100': fulfillmentType === 'dropoff' }">Terpilih ✓</div>
+                        </div>
+                    </label>
+
+                    <!-- Pickup -->
+                    <label class="relative cursor-pointer service-label">
+                        <input type="radio" name="fulfillment_type" value="pickup" x-model="fulfillmentType" class="sr-only peer">
+                        <div class="service-card" :class="{ 'selected': fulfillmentType === 'pickup' }">
+                            <div class="check-icon">
+                                <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                            <div class="service-icon">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                                </svg>
+                            </div>
+                            <div class="font-semibold text-slate-900 text-sm">Jemput Kurir</div>
+                            <div class="text-xs text-slate-500 mt-1">Kurir akan menjemput paket ke lokasi Anda</div>
+                            <div class="text-xs text-blue-600 font-medium mt-2 opacity-0" :class="{ 'opacity-100': fulfillmentType === 'pickup' }">Terpilih ✓</div>
+                        </div>
+                    </label>
+                </div>
+                @error('fulfillment_type')<p class="form-error">{{ $message }}</p>@enderror
+
+                <!-- Conditional Pickup Fields -->
+                <div x-show="fulfillmentType === 'pickup'" x-transition class="mt-6 space-y-4 p-5 bg-blue-50/50 rounded-2xl border border-blue-100">
+                    <h3 class="text-sm font-semibold text-blue-800">Detail Penjemputan</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="form-label mb-0" for="pickup_address">Alamat Penjemputan <span class="text-red-500">*</span></label>
+                                <button type="button" @click="pickupAddress = senderAddress" class="text-xs text-blue-600 hover:text-blue-700 font-medium">Sama dengan alamat pengirim</button>
+                            </div>
+                            <textarea id="pickup_address" name="pickup_address" x-model="pickupAddress" rows="3" class="form-input resize-none bg-white" placeholder="Jl. Alamat penjemputan paket..."></textarea>
+                            @error('pickup_address')<p class="form-error">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="form-label" for="pickup_scheduled_at">Waktu Penjemputan <span class="text-red-500">*</span></label>
+                                <input id="pickup_scheduled_at" type="datetime-local" name="pickup_scheduled_at" value="{{ old('pickup_scheduled_at') }}" class="form-input bg-white">
+                                @error('pickup_scheduled_at')<p class="form-error">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label class="form-label" for="pickup_notes">Catatan untuk Kurir (Opsional)</label>
+                                <input id="pickup_notes" type="text" name="pickup_notes" value="{{ old('pickup_notes') }}" class="form-input bg-white" placeholder="Contoh: Titip di satpam jika tidak ada di rumah">
+                                @error('pickup_notes')<p class="form-error">{{ $message }}</p>@enderror
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         {{-- Step 2: Sender & Receiver --}}
@@ -201,7 +271,7 @@
                     </div>
                     <div>
                         <label class="form-label" for="sender_address">Alamat Lengkap <span class="text-red-500">*</span></label>
-                        <textarea id="sender_address" name="sender_address" rows="3" required class="form-input resize-none" placeholder="Jl. ...">{{ old('sender_address') }}</textarea>
+                        <textarea id="sender_address" name="sender_address" x-model="senderAddress" rows="3" required class="form-input resize-none" placeholder="Jl. ..."></textarea>
                         @error('sender_address')<p class="form-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -332,6 +402,9 @@ function bookingForm() {
         origin: '{{ old("origin_city", "") }}',
         destination: '{{ old("destination_city", "") }}',
         serviceType: '{{ old("service_type", "regular") }}',
+        fulfillmentType: '{{ old("fulfillment_type", "dropoff") }}',
+        pickupAddress: '{{ old("pickup_address", "") }}',
+        senderAddress: '{{ old("sender_address", "") }}',
         items: [{ name: '', quantity: 1, weight: '' }],
         rateResult: null,
         rateError: null,

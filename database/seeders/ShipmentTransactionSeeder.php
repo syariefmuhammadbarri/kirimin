@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Branch;
+use App\Models\CourierAssignment;
 use App\Models\Customer;
 use App\Models\DeliveryProof;
 use App\Models\Payment;
@@ -435,6 +436,120 @@ class ShipmentTransactionSeeder extends Seeder
             'tracked_at' => now()->subDays(3),
         ]);
 
-        $this->command->info('6 sample transactional records seeded successfully!');
+        // ===== 7. PICKUP FLOW — Customer Requested Pickup (pickup_scheduled) =====
+        $shipment7 = Shipment::create([
+            'tracking_number'    => 'EXP-20260718-PICK7',
+            'booking_code'       => 'BK-20260718-PICK7',
+            'customer_id'        => $customer->id,
+            'branch_id'          => $branchJkt?->id,
+            'status'             => 'pickup_scheduled',
+            'fulfillment_type'   => 'pickup',
+            'pickup_address'     => 'Jl. Thamrin No. 5, Jakarta Pusat',
+            'pickup_scheduled_at'=> now()->addHours(3),
+            'pickup_notes'       => 'Tolong hubungi dulu sebelum datang.',
+            'origin_city'        => 'Jakarta',
+            'destination_city'   => 'Bandung',
+            'sender_name'        => 'Hendra Pickup',
+            'sender_phone'       => '081122334455',
+            'sender_address'     => 'Jl. Thamrin No. 5, Jakarta Pusat',
+            'receiver_name'      => 'Indah Penerima',
+            'receiver_phone'     => '082233445566',
+            'receiver_address'   => 'Jl. Braga No. 8, Bandung',
+            'estimated_weight'   => 2.00,
+            'actual_weight'      => null,
+            'estimated_price'    => 30000,
+            'actual_price'       => null,
+            'total_price'        => 30000,
+            'service_type'       => 'regular',
+        ]);
+
+        ShipmentItem::create([
+            'shipment_id' => $shipment7->id,
+            'item_name'   => 'Tas Branded',
+            'quantity'    => 1,
+            'weight'      => 2.00,
+        ]);
+
+        $payment7 = Payment::create([
+            'order_id'       => $shipment7->tracking_number,
+            'shipment_id'    => $shipment7->id,
+            'amount'         => 30000,
+            'payment_method' => 'midtrans',
+            'payment_status' => 'paid',
+        ]);
+        $shipment7->update(['payment_id' => $payment7->id]);
+
+        ShipmentTracking::create([
+            'shipment_id' => $shipment7->id,
+            'location'    => 'Jakarta',
+            'description' => 'Booking dengan layanan Jemput Kurir. Pembayaran lunas via Midtrans.',
+            'status'      => 'pickup_scheduled',
+            'tracked_at'  => now()->subHour(),
+        ]);
+
+        // ===== 8. MULTI-HOP TRANSIT — Bandung → Jakarta (next stop Jakarta) =====
+        $shipment8 = Shipment::create([
+            'tracking_number' => 'EXP-20260717-HOP8',
+            'booking_code'    => 'BK-20260717-HOP8',
+            'customer_id'     => $customer->id,
+            'branch_id'       => $branchBdg?->id,
+            'next_branch_id'  => $branchJkt?->id,
+            'status'          => 'in_transit',
+            'fulfillment_type'=> 'dropoff',
+            'origin_city'     => 'Bandung',
+            'destination_city'=> 'Surabaya',
+            'sender_name'     => 'Joko Pengirim',
+            'sender_phone'    => '089900112233',
+            'sender_address'  => 'Jl. Sudirman No. 99, Bandung',
+            'receiver_name'   => 'Kartini Penerima',
+            'receiver_phone'  => '088800992211',
+            'receiver_address'=> 'Jl. Pemuda No. 3, Surabaya',
+            'estimated_weight'=> 8.00,
+            'actual_weight'   => 8.50,
+            'estimated_price' => 192000,
+            'actual_price'    => 204000,
+            'total_price'     => 204000,
+            'service_type'    => 'regular',
+        ]);
+
+        ShipmentItem::create([
+            'shipment_id' => $shipment8->id,
+            'item_name'   => 'Barang Elektronik (Laptop)',
+            'quantity'    => 1,
+            'weight'      => 8.00,
+        ]);
+
+        $payment8 = Payment::create([
+            'order_id'       => $shipment8->tracking_number,
+            'shipment_id'    => $shipment8->id,
+            'amount'         => 204000,
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+        ]);
+        $shipment8->update(['payment_id' => $payment8->id]);
+
+        ShipmentTracking::create([
+            'shipment_id' => $shipment8->id,
+            'location'    => 'Bandung',
+            'description' => 'Booking pengiriman dibuat. Paket multi-hop Bandung → Jakarta → Surabaya.',
+            'status'      => 'booking_created',
+            'tracked_at'  => now()->subDays(2),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment8->id,
+            'location'    => 'Bandung',
+            'description' => 'Pembayaran cash diterima di Cabang Bandung.',
+            'status'      => 'received_at_branch',
+            'tracked_at'  => now()->subDays(2)->addHours(2),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment8->id,
+            'location'    => 'Bandung',
+            'description' => 'Paket diberangkatkan dari Cabang Bandung menuju Cabang Jakarta (transit hop 1/2).',
+            'status'      => 'in_transit',
+            'tracked_at'  => now()->subDays(1),
+        ]);
+
+        $this->command->info('8 sample transactional records seeded successfully!');
     }
 }

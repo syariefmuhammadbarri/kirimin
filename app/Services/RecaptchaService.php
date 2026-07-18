@@ -39,12 +39,8 @@ class RecaptchaService
 
             if ($response->successful()) {
                 $data = $response->json();
-                
-                if (isset($data['success']) && $data['success'] === true) {
-                    $score = $data['score'] ?? 0.0;
-                    // Google reCAPTCHA v3 threshold is 0.5
-                    return $score >= 0.5;
-                }
+                // reCAPTCHA v2: just check success
+                return isset($data['success']) && $data['success'] === true;
             }
         } catch (\Exception $e) {
             Log::error('reCAPTCHA Validation Error: ' . $e->getMessage());

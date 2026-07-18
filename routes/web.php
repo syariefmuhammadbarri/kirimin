@@ -70,6 +70,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/process-weigh/{shipment}', [BranchAdminController::class, 'processWeigh'])->name('process-weigh');
         Route::post('/confirm-cash/{shipment}', [BranchAdminController::class, 'confirmCashPayment'])->name('confirm-cash');
         Route::post('/assign-courier/{shipment}', [BranchAdminController::class, 'assignCourier'])->name('assign-courier');
+        Route::post('/assign-pickup-courier/{shipment}', [BranchAdminController::class, 'assignPickupCourier'])->name('assign-pickup-courier');
         Route::get('/receipt/{shipment}', [BranchAdminController::class, 'printReceipt'])->name('receipt');
         Route::get('/assignments', [BranchAdminController::class, 'viewAssignments'])->name('assignments');
         Route::get('/reports', [BranchAdminController::class, 'downloadBranchReport'])->name('reports');
@@ -81,6 +82,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('role:kurir')->prefix('courier')->name('courier.')->group(function () {
         Route::get('/dashboard', [CourierController::class, 'dashboard'])->name('dashboard');
         Route::post('/pickup/{shipment}', [CourierController::class, 'pickUp'])->name('pickup');
+        Route::post('/collect/{shipment}', [CourierController::class, 'collectFromCustomer'])->name('collect');
+        Route::post('/drop-at-branch/{shipment}', [CourierController::class, 'dropAtBranch'])->name('drop-at-branch');
         Route::post('/out-for-delivery/{shipment}', [CourierController::class, 'outForDelivery'])->name('out-for-delivery');
         Route::post('/deliver/{shipment}', [CourierController::class, 'deliver'])->name('deliver');
         Route::post('/fail/{shipment}', [CourierController::class, 'failDelivery'])->name('fail');

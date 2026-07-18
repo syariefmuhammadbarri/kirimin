@@ -52,12 +52,14 @@
                 </label>
             </div>
 
-            <!-- reCAPTCHA Placeholder / Field if Enabled -->
+            <!-- reCAPTCHA v2 Checkbox -->
             @if(filter_var(env('RECAPTCHA_ENABLED', false), FILTER_VALIDATE_BOOLEAN))
-                <input type="hidden" name="g-recaptcha-response" id="recaptcha-response">
-                @error('recaptcha')
-                    <p class="text-xs text-red-400">{{ $message }}</p>
-                @enderror
+                <div>
+                    <div class="g-recaptcha" data-sitekey="{{ env('RECAPTCHA_SITE_KEY') }}"></div>
+                    @error('recaptcha')
+                        <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
             @endif
 
             <!-- Submit Button -->
@@ -81,17 +83,6 @@
 
 @section('scripts')
 @if(filter_var(env('RECAPTCHA_ENABLED', false), FILTER_VALIDATE_BOOLEAN))
-    <script src="https://www.google.com/recaptcha/api.js?render={{ env('RECAPTCHA_SITE_KEY') }}"></script>
-    <script>
-        document.querySelector('form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            grecaptcha.ready(function() {
-                grecaptcha.execute('{{ env('RECAPTCHA_SITE_KEY') }}', {action: 'login'}).then(function(token) {
-                    document.getElementById('recaptcha-response').value = token;
-                    document.querySelector('form').submit();
-                });
-            });
-        });
-    </script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 @endif
 @endsection

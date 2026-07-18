@@ -135,6 +135,10 @@ class CustomerController extends Controller
             'receiver_phone' => 'required|string|max:20',
             'receiver_address' => 'required|string',
             'service_type' => 'required|string|in:regular,express',
+            'fulfillment_type' => 'required|in:dropoff,pickup',
+            'pickup_address' => 'required_if:fulfillment_type,pickup|nullable|string',
+            'pickup_scheduled_at' => 'required_if:fulfillment_type,pickup|nullable|date|after:now',
+            'pickup_notes' => 'nullable|string|max:500',
             
             // Items details
             'items' => 'required|array|min:1',
@@ -194,6 +198,10 @@ class CustomerController extends Controller
                 'estimated_price' => $rateDetails['total_price'],
                 'total_price' => $rateDetails['total_price'],
                 'service_type' => $request->service_type,
+                'fulfillment_type' => $request->fulfillment_type,
+                'pickup_address' => $request->fulfillment_type === 'pickup' ? $request->pickup_address : null,
+                'pickup_scheduled_at' => $request->fulfillment_type === 'pickup' ? $request->pickup_scheduled_at : null,
+                'pickup_notes' => $request->pickup_notes,
             ]);
 
             // 2. Create Items
@@ -288,15 +296,21 @@ class CustomerController extends Controller
                 'payment_method' => Payment::normalizePaymentMethod('midtrans')
             ]);
 
+            $newStatus = $shipment->fulfillment_type === 'pickup' ? 'pickup_scheduled' : 'waiting_dropoff';
+
             $shipment->update([
-                'status' => 'waiting_dropoff'
+                'status' => $newStatus
             ]);
+
+            $description = $shipment->fulfillment_type === 'pickup'
+                ? 'Pembayaran berhasil dikonfirmasi. Menunggu kurir ditugaskan untuk penjemputan paket.'
+                : 'Pembayaran berhasil dikonfirmasi. Paket siap dibawa ke outlet terdekat.';
 
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $shipment->origin_city,
-                'description' => 'Pembayaran berhasil dikonfirmasi. Paket siap dibawa ke outlet terdekat.',
-                'status' => 'waiting_dropoff',
+                'description' => $description,
+                'status' => $newStatus,
                 'tracked_at' => now(),
             ]);
         });

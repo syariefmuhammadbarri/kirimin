@@ -14,7 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'tracking_number', 'booking_code', 'customer_id', 'branch_id', 'courier_id', 'payment_id',
     'status', 'origin_city', 'destination_city', 'sender_name', 'sender_phone', 'sender_address',
     'receiver_name', 'receiver_phone', 'receiver_address', 'estimated_weight', 'actual_weight',
-    'estimated_price', 'actual_price', 'total_price', 'service_type'
+    'estimated_price', 'actual_price', 'total_price', 'service_type',
+    'next_branch_id', 'fulfillment_type', 'pickup_address', 'pickup_scheduled_at', 'pickup_notes'
 ])]
 class Shipment extends Model
 {
@@ -63,5 +64,17 @@ class Shipment extends Model
     public function activeAssignment()
     {
         return $this->hasOne(CourierAssignment::class)->whereIn('status', ['assigned', 'pending'])->latestOfMany();
+    }
+
+    public function nextBranch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'next_branch_id');
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'pickup_scheduled_at' => 'datetime',
+        ];
     }
 }

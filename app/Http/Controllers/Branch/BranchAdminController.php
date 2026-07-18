@@ -27,7 +27,7 @@ class BranchAdminController extends Controller
         $this->reportService = $reportService;
     }
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $admin = Auth::user();
         $branchId = $admin->branch_id;
@@ -38,14 +38,21 @@ class BranchAdminController extends Controller
 
         $branch = Branch::findOrFail($branchId);
 
-        // Fetch shipments that originated or are currently at this branch
-        $shipments = Shipment::with(['customer', 'payment', 'courier'])
-            ->where(function ($query) use ($branchId, $branch) {
-                $query->where('branch_id', $branchId)
-                      ->orWhere('origin_city', $branch->city);
-            })
-            ->latest()
-            ->paginate(10);
+        // Fetch shipments that originated, are currently at this branch, or are heading to this branch
+        $query = Shipment::with(['customer', 'payment', 'courier', 'nextBranch'])
+            ->where(function ($q) use ($branchId, $branch) {
+                $q->where('branch_id', $branchId)
+                  ->orWhere('origin_city', $branch->city)
+                  ->orWhere('next_branch_id', $branchId);
+            });
+
+        // Add filter support if requested in the dashboard view
+        $statusFilter = $request->input('status');
+        if ($statusFilter) {
+            $query->where('status', $statusFilter);
+        }
+
+        $allShipments = (clone $query)->get();
 
         $couriers = User::role('kurir')
             ->where('branch_id', $branchId)
@@ -53,16 +60,21 @@ class BranchAdminController extends Controller
 
         // Calculate statistics
         $stats = [
-            'total' => $shipments->count(),
-            'waiting_dropoff' => $shipments->where('status', 'waiting_dropoff')->count(),
-            'weighed' => $shipments->where('status', 'weighed')->count(),
-            'received' => $shipments->where('status', 'received_at_branch')->count(),
-            'assigned' => $shipments->where('status', 'assigned_to_courier')->count(),
-            'transit' => $shipments->whereIn('status', ['in_transit', 'picked_up', 'out_for_delivery'])->count(),
-            'delivered' => $shipments->where('status', 'delivered')->count(),
+            'total' => $allShipments->count(),
+            'waiting_dropoff' => $allShipments->where('status', 'waiting_dropoff')->count(),
+            'pickup_scheduled' => $allShipments->where('status', 'pickup_scheduled')->count(),
+            'pickup_assigned' => $allShipments->where('status', 'pickup_assigned')->count(),
+            'weighed' => $allShipments->where('status', 'weighed')->count(),
+            'received' => $allShipments->where('status', 'received_at_branch')->count(),
+            'assigned' => $allShipments->where('status', 'assigned_to_courier')->count(),
+            'transit' => $allShipments->whereIn('status', ['in_transit', 'picked_up', 'out_for_delivery', 'picked_up_from_customer'])->count(),
+            'delivered' => $allShipments->where('status', 'delivered')->count(),
         ];
 
-        return view('branch.dashboard', compact('branch', 'shipments', 'couriers', 'stats'));
+        $shipments = $query->latest()->paginate(10);
+        $branches = Branch::all();
+
+        return view('branch.dashboard', compact('branch', 'shipments', 'couriers', 'stats', 'branches'));
     }
 
     public function showScan()
@@ -351,30 +363,36 @@ class BranchAdminController extends Controller
         return $pdf->download('laporan-cabang-' . str_replace(' ', '-', strtolower($branch->name)) . '.pdf');
     }
 
-    public function sendTransit(Shipment $shipment)
+    public function sendTransit(Request $request, Shipment $shipment)
     {
+        $request->validate([
+            'next_branch_id' => 'required|exists:branches,id|different:branch_id',
+        ]);
+
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
+        $nextBranch = Branch::findOrFail($request->next_branch_id);
 
         if (!in_array($shipment->status, ['received_at_branch', 'weighed'])) {
             return back()->with('error', 'Status paket tidak valid untuk dikirim transit.');
         }
 
-        DB::transaction(function () use ($shipment, $branch) {
+        DB::transaction(function () use ($shipment, $branch, $nextBranch) {
             $shipment->update([
-                'status' => 'in_transit'
+                'status' => 'in_transit',
+                'next_branch_id' => $nextBranch->id,
             ]);
 
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => "Paket diberangkatkan dari Cabang {$branch->name} (transit) menuju kota tujuan {$shipment->destination_city}.",
+                'description' => "Paket diberangkatkan dari Cabang {$branch->name} menuju Cabang {$nextBranch->name} ({$nextBranch->city}).",
                 'status' => 'in_transit',
                 'tracked_at' => now(),
             ]);
         });
 
-        return back()->with('success', 'Paket berhasil dikirim (Transit).');
+        return back()->with('success', "Paket dikirim transit menuju {$nextBranch->name}.");
     }
 
     public function receiveTransit(Shipment $shipment)
@@ -382,21 +400,92 @@ class BranchAdminController extends Controller
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
 
+        if ($shipment->next_branch_id !== $branch->id) {
+            return back()->with('error', 'Paket ini tidak dijadwalkan transit ke cabang Anda.');
+        }
+
         DB::transaction(function () use ($shipment, $branch) {
+            $isFinalDestination = strtolower($branch->city) === strtolower($shipment->destination_city);
+
             $shipment->update([
                 'status' => 'received_at_branch',
-                'branch_id' => $branch->id
+                'branch_id' => $branch->id,
+                'next_branch_id' => null,
             ]);
 
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => "Paket transit telah tiba dan diterima di Cabang {$branch->name}.",
+                'description' => $isFinalDestination
+                    ? "Paket transit telah tiba di Cabang {$branch->name} (cabang tujuan akhir)."
+                    : "Paket transit telah tiba di Cabang {$branch->name} (transit intermediate).",
                 'status' => 'received_at_branch',
                 'tracked_at' => now(),
             ]);
         });
 
         return redirect()->route('branch.dashboard')->with('success', 'Paket transit berhasil diterima di cabang ini.');
+    }
+
+    public function assignPickupCourier(Request $request, Shipment $shipment)
+    {
+        $request->validate([
+            'courier_id' => 'required|exists:users,id',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($shipment->status !== 'pickup_scheduled') {
+            return back()->with('error', 'Paket ini tidak sedang menunggu penjemputan.');
+        }
+
+        $courier = User::findOrFail($request->courier_id);
+        $admin = Auth::user();
+        $branch = Branch::findOrFail($admin->branch_id);
+
+        // Check courier availability: max 5 active assignments (pickup + delivery)
+        $activeCount = CourierAssignment::where('courier_id', $courier->id)
+            ->whereIn('status', ['pending', 'assigned'])
+            ->count();
+
+        if ($activeCount >= 5) {
+            return back()->with('error', 'Kurir ini sudah memiliki ' . $activeCount . ' tugas aktif. Maksimal 5 tugas per kurir.');
+        }
+
+        // Check if shipment already has an active assignment
+        $existingAssignment = CourierAssignment::where('shipment_id', $shipment->id)
+            ->whereIn('status', ['pending', 'assigned'])
+            ->first();
+
+        if ($existingAssignment) {
+            return back()->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
+        }
+
+        DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch) {
+            $shipment->update([
+                'courier_id' => $courier->id,
+                'status' => 'pickup_assigned',
+                'branch_id' => $branch->id,
+            ]);
+
+            CourierAssignment::create([
+                'shipment_id' => $shipment->id,
+                'courier_id' => $courier->id,
+                'assigned_by' => $admin->id,
+                'assigned_at' => now(),
+                'status' => 'assigned',
+                'type' => 'pickup',
+                'notes' => $request->notes,
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location' => $branch->city,
+                'description' => "Kurir {$courier->name} ditugaskan untuk menjemput paket di alamat pengirim.",
+                'status' => 'pickup_assigned',
+                'tracked_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', "Kurir {$courier->name} ditugaskan untuk menjemput paket.");
     }
 }

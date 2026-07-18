@@ -5,6 +5,9 @@
     .status-badge { @apply text-xs font-semibold px-2.5 py-1 rounded-full tracking-wide border; }
     .status-booking_created { @apply bg-slate-100 text-slate-700 border-slate-200; }
     .status-waiting_dropoff { @apply bg-yellow-50 text-yellow-700 border-yellow-200; }
+    .status-pickup_scheduled { @apply bg-amber-50 text-amber-700 border-amber-200; }
+    .status-pickup_assigned { @apply bg-violet-50 text-violet-700 border-violet-200; }
+    .status-picked_up_from_customer { @apply bg-blue-50 text-blue-700 border-blue-200; }
     .status-weighed { @apply bg-blue-50 text-blue-700 border-blue-200; }
     .status-payment_pending { @apply bg-orange-50 text-orange-700 border-orange-200; }
     .status-received_at_branch { @apply bg-indigo-50 text-indigo-700 border-indigo-200; }
@@ -26,14 +29,18 @@
     </div>
 
     {{-- Stats Row --}}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div class="card-panel rounded-xl p-5">
             <p class="text-3xl font-bold text-slate-900">{{ $stats['total'] }}</p>
             <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Total Tugas</p>
         </div>
+        <div class="card-panel rounded-xl p-5 border border-amber-200/60">
+            <p class="text-3xl font-bold text-amber-600">{{ $stats['pickup'] ?? 0 }}</p>
+            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Jemput Aktif</p>
+        </div>
         <div class="card-panel rounded-xl p-5">
             <p class="text-3xl font-bold text-blue-600">{{ $stats['assigned'] }}</p>
-            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Ditugaskan / Pick Up</p>
+            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Delivery Aktif</p>
         </div>
         <div class="card-panel rounded-xl p-5">
             <p class="text-3xl font-bold text-cyan-600">{{ $stats['transit'] }}</p>
@@ -45,11 +52,81 @@
         </div>
     </div>
 
-    {{-- Active / Pending Deliveries --}}
+    {{-- Active / Pending Tasks --}}
     @php
-    $activeShipments = $shipments->whereIn('status', ['assigned_to_courier', 'picked_up', 'out_for_delivery']);
-    $doneShipments = $shipments->whereIn('status', ['delivered', 'gagal_kirim']);
+    $pickupShipments   = $shipments->whereIn('status', ['pickup_assigned', 'picked_up_from_customer']);
+    $activeShipments   = $shipments->whereIn('status', ['assigned_to_courier', 'picked_up', 'out_for_delivery']);
+    $doneShipments     = $shipments->whereIn('status', ['delivered', 'gagal_kirim']);
     @endphp
+
+    {{-- ===== PICKUP TASKS ===== --}}
+    @if($pickupShipments->isNotEmpty())
+    <div class="space-y-4">
+        <h2 class="text-lg font-bold text-amber-700 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            🛵 Tugas Penjemputan ({{ $pickupShipments->count() }})
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            @foreach($pickupShipments as $shipment)
+            <div class="card-panel rounded-2xl p-6 border border-amber-200/50 hover:border-amber-400/50 hover:shadow-md transition-all">
+                {{-- Card Header --}}
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <span class="font-mono text-xs font-semibold text-amber-600">{{ $shipment->tracking_number }}</span>
+                        <p class="text-xs text-slate-400 mt-0.5">{{ $shipment->created_at->format('d M Y') }}</p>
+                    </div>
+                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full border
+                        @if($shipment->status === 'picked_up_from_customer') bg-blue-50 text-blue-700 border-blue-200
+                        @else bg-amber-50 text-amber-700 border-amber-200 @endif">
+                        {{ str_replace('_', ' ', $shipment->status) }}
+                    </span>
+                </div>
+
+                {{-- Pickup Details --}}
+                <div class="mb-4 space-y-2 text-sm">
+                    <div class="flex items-center gap-2 text-slate-700">
+                        <svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        <span class="font-medium">{{ $shipment->sender_name }}</span> &bull; {{ $shipment->sender_phone }}
+                    </div>
+                    <div class="flex items-start gap-2 text-slate-500 text-xs">
+                        <svg class="w-4 h-4 mt-0.5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span class="font-semibold text-amber-700">Lokasi Jemput:</span>&nbsp;{{ $shipment->pickup_address ?? $shipment->sender_address }}
+                    </div>
+                    @if($shipment->pickup_scheduled_at)
+                    <div class="text-xs text-slate-400">
+                        🕐 Jadwal: {{ $shipment->pickup_scheduled_at->format('d M Y H:i') }}
+                    </div>
+                    @endif
+                    <div class="text-xs text-slate-500">
+                        Pengirim → <span class="text-slate-700 font-medium">{{ $shipment->destination_city }}</span>
+                    </div>
+                </div>
+
+                {{-- Actions --}}
+                <div class="border-t border-black/5 pt-4">
+                    @if($shipment->status === 'pickup_assigned')
+                    <form method="POST" action="{{ route('courier.collect', $shipment) }}" onsubmit="return confirm('Konfirmasi berhasil menjemput paket dari pelanggan?')">
+                        @csrf
+                        <button type="submit" class="w-full py-2.5 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition shadow-sm">
+                            📦 Paket Sudah Dijemput dari Pelanggan
+                        </button>
+                    </form>
+                    @endif
+
+                    @if($shipment->status === 'picked_up_from_customer')
+                    <form method="POST" action="{{ route('courier.drop-at-branch', $shipment) }}" onsubmit="return confirm('Konfirmasi paket sudah diserahkan ke cabang?')">
+                        @csrf
+                        <button type="submit" class="w-full py-2.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition shadow-sm">
+                            🏢 Serahkan ke Cabang
+                        </button>
+                    </form>
+                    @endif
+                </div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
 
     @if($activeShipments->isNotEmpty())
     <div class="space-y-4">

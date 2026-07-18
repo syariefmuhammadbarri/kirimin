@@ -5,6 +5,9 @@
     .status-badge { @apply text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider; }
     .status-booking_created { @apply bg-slate-800 text-slate-300 border border-slate-700; }
     .status-waiting_dropoff { @apply bg-yellow-950/60 text-yellow-400 border border-yellow-800/50; }
+    .status-pickup_scheduled { @apply bg-amber-950/60 text-amber-400 border border-amber-800/50; }
+    .status-pickup_assigned { @apply bg-violet-950/60 text-violet-400 border border-violet-800/50; }
+    .status-picked_up_from_customer { @apply bg-blue-950/60 text-blue-400 border border-blue-800/50; }
     .status-weighed { @apply bg-blue-950/60 text-blue-400 border border-blue-800/50; }
     .status-payment_pending { @apply bg-orange-950/60 text-orange-400 border border-orange-800/50; }
     .status-received_at_branch { @apply bg-indigo-950/60 text-indigo-400 border border-indigo-800/50; }
@@ -34,8 +37,8 @@
 {{-- Stats Cards --}}
 @php
     $totalShipments = $shipments->count();
-    $pendingPayment = $shipments->whereIn('status', ['booking_created', 'waiting_dropoff', 'payment_pending'])->count();
-    $inProgress = $shipments->whereIn('status', ['weighed', 'received_at_branch', 'assigned_to_courier', 'out_for_delivery'])->count();
+    $pendingPayment = $shipments->whereIn('status', ['booking_created', 'payment_pending'])->count();
+    $inProgress = $shipments->whereIn('status', ['waiting_dropoff', 'pickup_scheduled', 'pickup_assigned', 'picked_up_from_customer', 'weighed', 'received_at_branch', 'assigned_to_courier', 'out_for_delivery'])->count();
     $delivered = $shipments->where('status', 'delivered')->count();
 @endphp
 
