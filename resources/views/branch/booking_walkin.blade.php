@@ -23,7 +23,7 @@
     </div>
     @endif
 
-    <form method="POST" action="{{ route('branch.booking-walkin.store') }}" id="walkin-form">
+    <form method="POST" action="{{ route('branch.booking.walkin.store') }}" id="walkin-form">
         @csrf
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 

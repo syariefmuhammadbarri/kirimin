@@ -106,14 +106,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/reports', [BranchAdminController::class, 'downloadBranchReport'])->name('reports');
         Route::post('/send-transit/{shipment}', [BranchAdminController::class, 'sendTransit'])->name('send-transit');
         Route::post('/receive-transit/{shipment}', [BranchAdminController::class, 'receiveTransit'])->name('receive-transit');
+
         // FR-07: Walk-in booking oleh admin cabang
-        Route::get('/booking-walkin', [WalkInBookingController::class, 'create'])->name('booking-walkin.create');
-        Route::post('/booking-walkin', [WalkInBookingController::class, 'store'])->name('booking-walkin.store');
+        Route::get('/booking/walk-in', [WalkInBookingController::class, 'create'])->name('booking.walkin');
+        Route::post('/booking/walk-in/store', [WalkInBookingController::class, 'store'])->name('booking.walkin.store');
+        // Alur Sekuensial Walk-In & Cash Settlement (PRD Section 2B)
+        Route::get('/payment/verify/{shipment}', [WalkInBookingController::class, 'verifyPayment'])->name('payment.verify');
+        Route::post('/payment/process/{shipment}', [WalkInBookingController::class, 'processPayment'])->name('payment.process');
     });
 
     // Courier Role
     Route::middleware('role:kurir')->prefix('courier')->name('courier.')->group(function () {
         Route::get('/dashboard', [CourierController::class, 'dashboard'])->name('dashboard');
+        // Alur Validasi Update Status & POD (PRD Section 2C)
+        Route::get('/shipment/{shipment}/detail', [CourierController::class, 'show'])->name('shipment.detail');
+        Route::post('/shipment/{shipment}/complete', [CourierController::class, 'completeDelivery'])->name('shipment.complete');
+        // Legacy/operational action routes
         Route::post('/pickup/{shipment}', [CourierController::class, 'pickUp'])->name('pickup');
         Route::post('/collect/{shipment}', [CourierController::class, 'collectFromCustomer'])->name('collect');
         Route::post('/drop-at-branch/{shipment}', [CourierController::class, 'dropAtBranch'])->name('drop-at-branch');

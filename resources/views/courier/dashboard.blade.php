@@ -121,6 +121,11 @@
                         </button>
                     </form>
                     @endif
+
+                    <a href="{{ route('courier.shipment.detail', $shipment) }}"
+                       class="block mt-2 text-center py-2 text-xs text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 rounded-lg transition">
+                        📋 Detail Lengkap
+                    </a>
                 </div>
             </div>
             @endforeach

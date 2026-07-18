@@ -161,8 +161,87 @@ class WalkInBookingController extends Controller
 
             Log::info("[WalkInBooking] Booking {$trackingNumber} dibuat oleh admin {$admin->name} (cabang {$admin->branch_id}).");
 
-            return redirect()->route('branch.shipment.process', $shipment)
-                ->with('success', "Booking walk-in {$bookingCode} berhasil dibuat. Selesaikan proses timbang dan konfirmasi pembayaran di bawah.");
+            return redirect()->route('branch.payment.verify', ['shipment' => $shipment->id])
+                ->with('success', 'Data logistik berhasil masuk sistem. Silakan proses pembayaran.');
         });
+    }
+
+    /**
+     * PRD Section 2B: Halaman verifikasi kasir (Cashier Settlement).
+     * Hanya dapat diakses jika pembayaran belum lunas.
+     */
+    public function verifyPayment(Shipment $shipment)
+    {
+        $admin = Auth::user();
+
+        // Anti-bypass: tolak jika pembayaran sudah lunas
+        if ($shipment->payment && $shipment->payment->payment_status === 'paid') {
+            return redirect()->route('branch.dashboard')
+                ->with('error', 'Transaksi ini telah selesai diproses dan tidak membutuhkan verifikasi ulang.');
+        }
+
+        $shipment->load(['items', 'payment', 'customer']);
+        $branch = \App\Models\Branch::findOrFail($admin->branch_id);
+
+        return view('branch.payment_verify', compact('shipment', 'branch'));
+    }
+
+    /**
+     * PRD Section 2B: Proses pembayaran tunai & selesaikan alur Walk-In.
+     * Pola: Redirect kembali ke dashboard utama cabang (jangkar).
+     */
+    public function processPayment(Request $request, Shipment $shipment)
+    {
+        $admin = Auth::user();
+
+        // Anti-bypass: tolak jika pembayaran sudah lunas
+        if ($shipment->payment && $shipment->payment->payment_status === 'paid') {
+            return redirect()->route('branch.dashboard')
+                ->with('error', 'Transaksi ini telah selesai diproses dan tidak membutuhkan verifikasi ulang.');
+        }
+
+        $request->validate([
+            'amount_paid' => 'required|numeric|min:' . $shipment->total_price,
+        ]);
+
+        $branch = \App\Models\Branch::findOrFail($admin->branch_id);
+
+        DB::transaction(function () use ($request, $shipment, $admin, $branch) {
+            $payment = $shipment->payment;
+            $kembalian = (float) $request->amount_paid - (float) $shipment->total_price;
+
+            if ($payment) {
+                $payment->update([
+                    'payment_status' => 'paid',
+                    'payment_method' => 'cash',
+                    'paid_amount'    => $request->amount_paid,
+                ]);
+            }
+
+            $shipment->update([
+                'status'    => 'received_at_branch',
+                'branch_id' => $admin->branch_id,
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location'    => $branch->city,
+                'description' => 'Pembayaran tunai diterima di outlet. Nominal: Rp ' . number_format($request->amount_paid, 0, ',', '.') . '. Kembalian: Rp ' . number_format($kembalian, 0, ',', '.') . '. Paket masuk gudang cabang.',
+                'status'      => 'received_at_branch',
+                'tracked_at'  => now(),
+            ]);
+
+            // Notify customer if applicable
+            if ($shipment->customer && $shipment->customer->user) {
+                $shipment->notifyStatusChange(
+                    'received_at_branch',
+                    'Pembayaran tunai lunas! Nomor Resi ' . $shipment->tracking_number . ' telah diterima di cabang ' . $branch->name . '.',
+                    $branch->city
+                );
+            }
+        });
+
+        return redirect()->route('branch.dashboard')
+            ->with('success', 'Pembayaran tunai lunas! Nomor Resi ' . $shipment->tracking_number . ' siap dicetak.');
     }
 }

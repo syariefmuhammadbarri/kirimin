@@ -77,7 +77,7 @@
                         @elseif(Auth::user()->hasRole('admin_cabang'))
                             <a href="{{ route('branch.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Admin Panel</a>
                             {{-- FR-07: Walk-in booking shortcut --}}
-                            <a href="{{ route('branch.booking-walkin.create') }}" class="text-xs font-medium text-emerald-600 hover:text-emerald-800 border border-emerald-200 bg-emerald-50 px-2.5 py-1 rounded-lg transition">Walk-in</a>
+                            <a href="{{ route('branch.booking.walkin') }}" class="text-xs font-medium text-emerald-600 hover:text-emerald-800 border border-emerald-200 bg-emerald-50 px-2.5 py-1 rounded-lg transition">Walk-in</a>
                         @elseif(Auth::user()->hasRole('kurir'))
                             <a href="{{ route('courier.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Kurir Panel</a>
                         @elseif(Auth::user()->hasRole('manager'))
@@ -106,27 +106,19 @@
     <!-- Main Content wrapper -->
     <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         @if (session('success'))
-            <div class="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center space-x-3" x-data="{ show: true }" x-show="show" x-transition>
-                <svg class="h-5 w-5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div class="text-sm font-medium flex-grow">{{ session('success') }}</div>
-                <button type="button" @click="show = false" class="text-emerald-500 hover:text-emerald-700 focus:outline-none">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-            </div>
+            <x-alert type="success">{{ session('success') }}</x-alert>
         @endif
 
         @if (session('error'))
-            <div class="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center space-x-3" x-data="{ show: true }" x-show="show" x-transition>
-                <svg class="h-5 w-5 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div class="text-sm font-medium flex-grow">{{ session('error') }}</div>
-                <button type="button" @click="show = false" class="text-red-500 hover:text-red-700 focus:outline-none">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-            </div>
+            <x-alert type="error">{{ session('error') }}</x-alert>
+        @endif
+
+        @if (session('warning'))
+            <x-alert type="warning">{{ session('warning') }}</x-alert>
+        @endif
+
+        @if (session('info'))
+            <x-alert type="info">{{ session('info') }}</x-alert>
         @endif
 
         @yield('content')
