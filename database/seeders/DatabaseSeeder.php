@@ -279,12 +279,18 @@ class DatabaseSeeder extends Seeder
 
         // Contact Section
         LandingContent::create([
-            'section' => 'contact',
-            'title' => 'Hubungi Kami',
-            'content' => 'Ada pertanyaan? Tim CS kami siap membantu 24/7 melalui WhatsApp, email, atau kunjungi cabang terdekat.',
-            'image' => null,
-            'order' => 1,
+            'section'   => 'contact',
+            'title'     => 'Hubungi Kami',
+            'content'   => 'Ada pertanyaan? Tim CS kami siap membantu 24/7 melalui WhatsApp, email, atau kunjungi cabang terdekat.',
+            'image'     => null,
+            'order'     => 1,
             'is_active' => true,
         ]);
+
+        // Settings default
+        Setting::setValue('booking_expiry_hours', '24', 'Batas waktu pembayaran booking dalam jam (default: 24 jam)');
+        Setting::setValue('max_delivery_attempts', '3', 'Jumlah maksimal percobaan pengantaran sebelum paket dikembalikan (return-to-sender)');
+        Setting::setValue('company_name', 'BAZMA Express', 'Nama perusahaan ekspedisi');
+        Setting::setValue('company_phone', '0800-1234-5678', 'Nomor telepon CS');
     }
 }

@@ -58,12 +58,31 @@
                         
                         @if(Auth::user()->hasRole('customer'))
                             <a href="{{ route('customer.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Dashboard</a>
+
+                            {{-- FR-08: Notification bell badge --}}
+                            @php $unreadCount = Auth::user()->unreadNotifications->count(); @endphp
+                            <a href="{{ route('customer.notifications') }}" class="relative inline-flex items-center text-gray-500 hover:text-blue-600 transition">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                                </svg>
+                                @if($unreadCount > 0)
+                                <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold">
+                                    {{ $unreadCount > 9 ? '9+' : $unreadCount }}
+                                </span>
+                                @endif
+                            </a>
+
+                            {{-- FR-11: Link profil --}}
+                            <a href="{{ route('customer.profile') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Profil</a>
                         @elseif(Auth::user()->hasRole('admin_cabang'))
                             <a href="{{ route('branch.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Admin Panel</a>
+                            {{-- FR-07: Walk-in booking shortcut --}}
+                            <a href="{{ route('branch.booking-walkin.create') }}" class="text-xs font-medium text-emerald-600 hover:text-emerald-800 border border-emerald-200 bg-emerald-50 px-2.5 py-1 rounded-lg transition">Walk-in</a>
                         @elseif(Auth::user()->hasRole('kurir'))
                             <a href="{{ route('courier.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Kurir Panel</a>
                         @elseif(Auth::user()->hasRole('manager'))
                             <a href="{{ route('manager.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Manager Portal</a>
+                            <a href="{{ route('manager.customers.index') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Customer</a>
                         @elseif(Auth::user()->hasRole('owner'))
                             <a href="{{ route('owner.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Owner Portal</a>
                         @endif
@@ -75,10 +94,11 @@
                             </button>
                         </form>
                     @else
-                        <a href="{{ route('login') }}" class="text-sm font-medium text-gray-700 hover:text-blue-600 transition">Masuk</a>
-                        <a href="{{ route('register') }}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition shadow-sm hover:shadow-md"> Daftar </a>
+                        <a href="{{ route('login.choose') }}" class="text-sm font-medium text-gray-700 hover:text-blue-600 transition">Masuk</a>
+                        <a href="{{ route('register.choose') }}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition shadow-sm hover:shadow-md"> Daftar </a>
                     @endauth
                 </div>
+
             </div>
         </div>
     </header>

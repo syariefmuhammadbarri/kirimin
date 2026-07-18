@@ -15,7 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'status', 'origin_city', 'destination_city', 'sender_name', 'sender_phone', 'sender_address',
     'receiver_name', 'receiver_phone', 'receiver_address', 'estimated_weight', 'actual_weight',
     'estimated_price', 'actual_price', 'total_price', 'service_type',
-    'next_branch_id', 'fulfillment_type', 'pickup_address', 'pickup_scheduled_at', 'pickup_notes'
+    'next_branch_id', 'fulfillment_type', 'pickup_address', 'pickup_scheduled_at', 'pickup_notes',
+    'cancelled_at', 'cancel_reason', 'delivery_attempt_count'
 ])]
 class Shipment extends Model
 {
@@ -75,6 +76,34 @@ class Shipment extends Model
     {
         return [
             'pickup_scheduled_at' => 'datetime',
+            'cancelled_at'        => 'datetime',
         ];
+    }
+
+    /**
+     * Dispatch notification to the customer about status change.
+     * This ensures ALL status changes are synced to all modules.
+     */
+    public function notifyStatusChange(string $status, string $description, string $location): void
+    {
+        if ($this->customer && $this->customer->user) {
+            $this->customer->user->notify(new \App\Notifications\ShipmentStatusChanged(
+                $this,
+                $status,
+                $description,
+                $location
+            ));
+        }
+    }
+
+    /**
+     * Kembalikan true jika shipment ini eligible untuk dibatalkan oleh customer.
+     * Syarat: status masih booking_created/waiting_dropoff/pickup_scheduled DAN payment belum paid.
+     */
+    public function isCancellable(): bool
+    {
+        $cancellableStatuses = ['booking_created', 'waiting_dropoff', 'pickup_scheduled', 'payment_pending'];
+        $paymentNotPaid = !$this->payment || $this->payment->payment_status !== 'paid';
+        return in_array($this->status, $cancellableStatuses) && $paymentNotPaid;
     }
 }

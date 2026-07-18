@@ -13,8 +13,9 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['name', 'email', 'password', 'branch_id'])]
+#[Fillable(['name', 'email', 'password', 'branch_id', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -30,7 +31,8 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password'          => 'hashed',
+            'is_active'         => 'boolean',
         ];
     }
 
@@ -47,6 +49,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function deliveryProofs(): HasMany
     {
         return $this->hasMany(DeliveryProof::class, 'courier_id');
+    }
+
+    /**
+     * Relasi ke profil Customer (hanya untuk user dengan role customer).
+     * Digunakan oleh login guard untuk cek is_suspended.
+     */
+    public function customer(): HasOne
+    {
+        return $this->hasOne(Customer::class, 'user_id');
     }
 }
 

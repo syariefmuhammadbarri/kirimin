@@ -15,12 +15,47 @@
     .status-out_for_delivery { @apply bg-cyan-950/60 text-cyan-400 border border-cyan-800/50; }
     .status-delivered { @apply bg-emerald-950/60 text-emerald-400 border border-emerald-800/50; }
     .status-gagal_kirim { @apply bg-red-950/60 text-red-400 border border-red-800/50; }
+    .status-cancelled { @apply bg-red-950/60 text-red-300 border border-red-800/50; }
+    .status-returned { @apply bg-orange-950/60 text-orange-300 border border-orange-800/50; }
     .card-hover { transition: border-color 0.2s, box-shadow 0.2s; }
     .card-hover:hover { border-color: rgba(59, 130, 246, 0.3); box-shadow: 0 0 20px rgba(59, 130, 246, 0.05); }
 </style>
 @endsection
 
 @section('content')
+@if(session('qr_code') && session('booking_code'))
+<div id="booking-success-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('booking-success-modal').remove()"></div>
+    <div class="relative glass-panel w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 z-10 shadow-2xl text-center space-y-4">
+        <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <div>
+            <h3 class="text-lg font-bold text-slate-800">Booking Berhasil Dibuat!</h3>
+            <p class="text-xs text-slate-500 mt-1">{{ session('success') }}</p>
+        </div>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center">
+            <img src="{{ session('qr_code') }}" alt="QR Code Booking" class="w-48 h-48 bg-white border border-slate-200 p-2 rounded-lg shadow-sm">
+            <div class="mt-3">
+                <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Kode Booking</span>
+                <span class="font-mono font-bold text-base text-slate-700 block select-all">{{ session('booking_code') }}</span>
+            </div>
+        </div>
+        <div class="text-left text-xs text-slate-600 space-y-1.5 p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
+            <p class="font-semibold text-slate-700">Langkah Selanjutnya:</p>
+            <p>1. Tunjukkan QR Code ini kepada petugas outlet saat menyerahkan paket.</p>
+            <p>2. Lakukan pembayaran melalui transfer online (Midtrans) atau tunai di cabang.</p>
+        </div>
+        <button onclick="document.getElementById('booking-success-modal').remove()"
+                class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg transition duration-150">
+            Tutup & Buka Dashboard
+        </button>
+    </div>
+</div>
+@endif
+
 {{-- Page Header --}}
 <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
@@ -34,30 +69,23 @@
     </a>
 </div>
 
-{{-- Stats Cards --}}
-@php
-    $totalShipments = $shipments->count();
-    $pendingPayment = $shipments->whereIn('status', ['booking_created', 'payment_pending'])->count();
-    $inProgress = $shipments->whereIn('status', ['waiting_dropoff', 'pickup_scheduled', 'pickup_assigned', 'picked_up_from_customer', 'weighed', 'received_at_branch', 'assigned_to_courier', 'out_for_delivery'])->count();
-    $delivered = $shipments->where('status', 'delivered')->count();
-@endphp
-
+{{-- Stats Cards — data akurat dari semua shipment, bukan hanya halaman ini --}}
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     <div class="glass-panel rounded-xl p-5 border border-slate-800">
         <p class="text-xs text-slate-600 uppercase tracking-wider mb-1">Total Pengiriman</p>
-        <p class="text-3xl font-bold text-slate-800">{{ $totalShipments }}</p>
+        <p class="text-3xl font-bold text-slate-800">{{ $stats['total'] }}</p>
     </div>
-    <div class="glass-panel rounded-xl p-5 border border-slate-200">
-        <p class="text-xs text-slate-600 uppercase tracking-wider mb-1">Menunggu Bayar</p>
-        <p class="text-3xl font-bold text-slate-700">{{ $pendingPayment }}</p>
+    <div class="glass-panel rounded-xl p-5 border border-amber-800/40 bg-amber-950/10">
+        <p class="text-xs text-amber-600 uppercase tracking-wider mb-1">Menunggu Bayar</p>
+        <p class="text-3xl font-bold text-amber-700">{{ $stats['pending_payment'] }}</p>
     </div>
-    <div class="glass-panel rounded-xl p-5 border border-slate-200">
-        <p class="text-xs text-slate-600 uppercase tracking-wider mb-1">Dalam Proses</p>
-        <p class="text-3xl font-bold text-slate-700">{{ $inProgress }}</p>
+    <div class="glass-panel rounded-xl p-5 border border-blue-800/40 bg-blue-950/10">
+        <p class="text-xs text-blue-600 uppercase tracking-wider mb-1">Dalam Proses</p>
+        <p class="text-3xl font-bold text-blue-700">{{ $stats['in_progress'] }}</p>
     </div>
-    <div class="glass-panel rounded-xl p-5 border border-slate-200">
-        <p class="text-xs text-slate-600 uppercase tracking-wider mb-1">Terkirim</p>
-        <p class="text-3xl font-bold text-slate-700">{{ $delivered }}</p>
+    <div class="glass-panel rounded-xl p-5 border border-emerald-800/40 bg-emerald-950/10">
+        <p class="text-xs text-emerald-600 uppercase tracking-wider mb-1">Terkirim</p>
+        <p class="text-3xl font-bold text-emerald-700">{{ $stats['delivered'] }}</p>
     </div>
 </div>
 
@@ -65,7 +93,7 @@
 <div class="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
     <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
         <h2 class="text-base font-semibold text-slate-800">Riwayat Pengiriman</h2>
-        <span class="text-xs text-slate-600">{{ $totalShipments }} paket</span>
+        <span class="text-xs text-slate-600">{{ $stats['total'] }} paket</span>
     </div>
 
     @if($shipments->isEmpty())
@@ -126,7 +154,7 @@
                         <td class="px-6 py-4 text-right">
                             <div class="flex items-center justify-end gap-2">
                                 {{-- Pay button if pending --}}
-                                @if($shipment->payment && $shipment->payment->payment_status !== 'paid')
+                                @if($shipment->payment && $shipment->payment->payment_status !== 'paid' && !in_array($shipment->status, ['cancelled', 'returned']))
                                     <button onclick="openPaymentModal({{ $shipment->id }}, '{{ $shipment->tracking_number }}')"
                                             class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition font-medium">
                                         Bayar
@@ -138,6 +166,13 @@
                                        class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-3 py-1.5 rounded transition font-medium">
                                         Invoice
                                     </a>
+                                @endif
+                                {{-- Cancel button: FR-01 — hanya jika eligible --}}
+                                @if($shipment->isCancellable())
+                                    <button onclick="openCancelModal({{ $shipment->id }}, '{{ $shipment->booking_code }}')"
+                                            class="text-xs bg-red-950/60 hover:bg-red-900/60 text-red-400 border border-red-800/50 px-3 py-1.5 rounded transition font-medium">
+                                        Batalkan
+                                    </button>
                                 @endif
                             </div>
                         </td>
@@ -180,6 +215,47 @@
         </div>
     </div>
 </div>
+
+{{-- Cancel Confirmation Modal — FR-01 --}}
+<div id="cancel-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCancelModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl border border-red-900/40 shadow-2xl p-6 relative z-10">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-950/60 border border-red-800/50 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Batalkan Booking?</h3>
+                    <p id="cancel-booking-code" class="text-sm text-slate-500 font-mono mt-0.5"></p>
+                </div>
+            </div>
+            <p class="text-sm text-slate-600 mb-4">Tindakan ini tidak dapat dibatalkan. Booking yang sudah dibatalkan tidak dapat diaktifkan kembali.</p>
+
+            <form id="cancel-form" method="POST" action="">
+                @csrf
+                <div class="mb-4">
+                    <label for="cancel_reason" class="block text-xs font-medium text-slate-600 mb-1.5">Alasan pembatalan (opsional)</label>
+                    <input type="text" name="cancel_reason" id="cancel_reason"
+                           placeholder="Contoh: Salah input alamat"
+                           class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-500 focus:outline-none focus:border-red-700 transition">
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeCancelModal()"
+                            class="flex-1 py-2.5 text-sm text-slate-600 hover:text-slate-800 border border-slate-700 rounded-lg transition">
+                        Kembali
+                    </button>
+                    <button type="submit"
+                            class="flex-1 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition">
+                        Ya, Batalkan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -191,6 +267,15 @@ function openPaymentModal(shipmentId, trackingNumber) {
 }
 function closePaymentModal() {
     document.getElementById('payment-modal').classList.add('hidden');
+}
+function openCancelModal(shipmentId, bookingCode) {
+    document.getElementById('cancel-booking-code').textContent = 'Booking: ' + bookingCode;
+    document.getElementById('cancel-form').action = '/customer/shipment/' + shipmentId + '/cancel';
+    document.getElementById('cancel_reason').value = '';
+    document.getElementById('cancel-modal').classList.remove('hidden');
+}
+function closeCancelModal() {
+    document.getElementById('cancel-modal').classList.add('hidden');
 }
 </script>
 @endsection

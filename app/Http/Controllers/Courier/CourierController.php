@@ -60,6 +60,9 @@ class CourierController extends Controller
                 'status' => 'picked_up',
                 'tracked_at' => now(),
             ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('picked_up', "Paket telah diambil dari cabang oleh Kurir {$courier->name}.", $location);
         });
 
         return back()->with('success', 'Paket berhasil diambil (Picked Up).');
@@ -87,6 +90,9 @@ class CourierController extends Controller
                 'status' => 'out_for_delivery',
                 'tracked_at' => now(),
             ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('out_for_delivery', "Paket sedang dalam perjalanan menuju alamat penerima oleh Kurir {$courier->name}.", $location);
         });
 
         return back()->with('success', 'Status pengiriman diubah menjadi sedang diantar.');
@@ -132,6 +138,12 @@ class CourierController extends Controller
                 'status' => 'delivered'
             ]);
 
+            // Mark delivery assignment as completed
+            CourierAssignment::where('shipment_id', $shipment->id)
+                ->where('type', 'delivery')
+                ->whereIn('status', ['pending', 'assigned'])
+                ->update(['status' => 'completed']);
+
             // Create tracking timeline checkpoint
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
@@ -140,6 +152,9 @@ class CourierController extends Controller
                 'status' => 'delivered',
                 'tracked_at' => now(),
             ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('delivered', "Paket berhasil diterima oleh {$request->recipient_name}. Terima kasih telah menggunakan BAZMA Express.", $shipment->destination_city);
         });
 
         return redirect()->route('courier.dashboard')->with('success', 'Paket berhasil ditandai sebagai Terkirim.');
@@ -168,6 +183,9 @@ class CourierController extends Controller
                 'status' => 'gagal_kirim',
                 'tracked_at' => now(),
             ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('gagal_kirim', "Pengiriman gagal. Alasan: {$request->reason}. Kami akan mencoba mengirim ulang.", $shipment->destination_city);
         });
 
         return redirect()->route('courier.dashboard')->with('success', 'Paket ditandai sebagai Gagal Kirim.');
@@ -193,6 +211,9 @@ class CourierController extends Controller
                 'status' => 'picked_up_from_customer',
                 'tracked_at' => now(),
             ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('picked_up_from_customer', "Paket berhasil dijemput oleh Kurir {$courier->name} dari alamat pengirim.", $shipment->origin_city);
         });
 
         return back()->with('success', 'Paket berhasil dikonfirmasi dijemput dari customer.');
@@ -229,8 +250,86 @@ class CourierController extends Controller
                 ->where('type', 'pickup')
                 ->whereIn('status', ['pending', 'assigned'])
                 ->update(['status' => 'completed']);
+
+            // Notify customer
+            $shipment->notifyStatusChange('received_at_branch', "Paket hasil penjemputan telah diserahkan ke Cabang {$branch?->name} oleh Kurir {$courier->name}.", $branch?->city ?? $shipment->origin_city);
         });
 
         return redirect()->route('courier.dashboard')->with('success', 'Paket berhasil diserahkan ke cabang.');
+    }
+
+    /**
+     * FR-Fase3: Retry pengantaran yang sebelumnya gagal (gagal_kirim).
+     * - Increment delivery_attempt_count
+     * - Jika sudah >= max_delivery_attempts → auto-set ke returned (return-to-sender)
+     * - Jika masih ada sisa → set kembali ke out_for_delivery
+     */
+    public function retryDelivery(Request $request, Shipment $shipment)
+    {
+        $courier = Auth::user();
+
+        if ($shipment->courier_id !== $courier->id) {
+            abort(403);
+        }
+
+        if ($shipment->status !== 'gagal_kirim') {
+            return back()->with('error', 'Hanya paket dengan status "Gagal Kirim" yang dapat dicoba ulang.');
+        }
+
+        $maxAttempts = (int) \App\Models\Setting::getValue('max_delivery_attempts', 3);
+        $currentAttempts = $shipment->delivery_attempt_count + 1;
+
+        DB::transaction(function () use ($shipment, $courier, $maxAttempts, $currentAttempts) {
+            $branch = Branch::find($courier->branch_id);
+
+            if ($currentAttempts >= $maxAttempts) {
+                // Sudah maksimal — kembalikan paket ke cabang asal
+                $shipment->update([
+                    'status'                  => 'returned',
+                    'delivery_attempt_count'  => $currentAttempts,
+                    'cancelled_at'            => now(),
+                    'cancel_reason'           => "Dikembalikan ke pengirim setelah {$currentAttempts}x percobaan pengantaran gagal.",
+                ]);
+
+                ShipmentTracking::create([
+                    'shipment_id' => $shipment->id,
+                    'location'    => $branch?->city ?? $shipment->destination_city,
+                    'description' => "Paket dikembalikan ke pengirim (return-to-sender). Percobaan pengantaran ke-{$currentAttempts} dari maksimal {$maxAttempts}.",
+                    'status'      => 'returned',
+                    'tracked_at'  => now(),
+                ]);
+
+                // Notify customer
+                $shipment->notifyStatusChange('returned', "Paket dikembalikan ke pengirim setelah {$currentAttempts}x percobaan pengantaran gagal.", $branch?->city ?? $shipment->destination_city);
+            } else {
+                // Masih ada sisa — lanjut coba kirim
+                $shipment->update([
+                    'status'                 => 'out_for_delivery',
+                    'delivery_attempt_count' => $currentAttempts,
+                ]);
+
+                ShipmentTracking::create([
+                    'shipment_id' => $shipment->id,
+                    'location'    => $branch?->city ?? $shipment->destination_city,
+                    'description' => "Percobaan pengantaran ke-{$currentAttempts}. Kurir {$courier->name} kembali mengantar paket.",
+                    'status'      => 'out_for_delivery',
+                    'tracked_at'  => now(),
+                ]);
+
+                CourierAssignment::updateOrCreate(
+                    ['shipment_id' => $shipment->id, 'type' => 'delivery', 'status' => 'pending'],
+                    ['courier_id' => $courier->id, 'status' => 'assigned']
+                );
+
+                // Notify customer
+                $shipment->notifyStatusChange('out_for_delivery', "Percobaan pengantaran ke-{$currentAttempts}. Kurir {$courier->name} kembali mengantar paket.", $branch?->city ?? $shipment->destination_city);
+            }
+        });
+
+        $message = $currentAttempts >= $maxAttempts
+            ? 'Batas percobaan pengantaran tercapai. Paket dikembalikan ke pengirim.'
+            : "Percobaan pengantaran ke-{$currentAttempts} dimulai. Semoga berhasil!";
+
+        return redirect()->route('courier.dashboard')->with('success', $message);
     }
 }

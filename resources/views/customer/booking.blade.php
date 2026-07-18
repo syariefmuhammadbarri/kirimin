@@ -9,6 +9,9 @@
     .form-label { @apply block text-sm font-semibold text-gray-700 mb-2; }
     .form-error { @apply mt-1.5 text-xs text-red-600; }
     .section-panel { @apply card-panel rounded-2xl border border-gray-200 p-6 mb-6; }
+    .city-search-results { max-height: 200px; overflow-y: auto; scrollbar-width: thin; }
+    .city-search-results::-webkit-scrollbar { width: 4px; }
+    .city-search-results::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
     .rate-result { display: none; }
     .rate-result.visible { display: block; }
 
@@ -116,22 +119,44 @@
                 Rute & Layanan
             </h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                <div x-data="citySelect('origin', '{{ old('origin_city') }}')">
                     <label class="form-label" for="origin_city">Kota Asal <span class="text-red-500">*</span></label>
-                    <select id="origin_city" name="origin_city" x-model="origin" @change="resetRate()" required
-                            class="form-input appearance-none cursor-pointer">
-                        <option value="">-- Pilih Kota Asal --</option>
-                        @foreach($cities as $city)
-                            <option value="{{ $city }}" {{ old('origin_city') === $city ? 'selected' : '' }}>{{ $city }}</option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <input type="text" x-ref="originInput" x-model="search" @input="filterCities" @focus="open = true" @click.away="open = false"
+                               placeholder="Cari kota asal..."
+                               class="form-input">
+                        <input type="hidden" name="origin_city" x-model="selected" @change="resetRate()">
+                        <div x-show="open && filteredCities.length > 0" 
+                             class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg city-search-results">
+                            <template x-for="city in filteredCities" :key="city.id">
+                                <div @click="selectCity(city)" 
+                                     class="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer border-b border-slate-100 last:border-b-0 transition">
+                                    <span x-text="city.name"></span>
+                                    <span class="text-xs text-slate-400 ml-2" x-text="city.type + ' - ' + city.province"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                     @error('origin_city')<p class="form-error">{{ $message }}</p>@enderror
                 </div>
-                <div>
+                <div x-data="citySelect('destination', '{{ old('destination_city') }}')">
                     <label class="form-label" for="destination_city">Kota Tujuan <span class="text-red-500">*</span></label>
-                    <input id="destination_city" type="text" name="destination_city" x-model="destination"
-                           value="{{ old('destination_city') }}" placeholder="Contoh: Bandung" required
-                           @input="resetRate()" class="form-input">
+                    <div class="relative">
+                        <input type="text" x-ref="destInput" x-model="search" @input="filterCities" @focus="open = true" @click.away="open = false"
+                               placeholder="Cari kota tujuan..."
+                               class="form-input">
+                        <input type="hidden" name="destination_city" x-model="selected" @change="resetRate()">
+                        <div x-show="open && filteredCities.length > 0" 
+                             class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg city-search-results">
+                            <template x-for="city in filteredCities" :key="city.id">
+                                <div @click="selectCity(city)" 
+                                     class="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer border-b border-slate-100 last:border-b-0 transition">
+                                    <span x-text="city.name"></span>
+                                    <span class="text-xs text-slate-400 ml-2" x-text="city.type + ' - ' + city.province"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                     @error('destination_city')<p class="form-error">{{ $message }}</p>@enderror
                 </div>
             </div>
@@ -397,6 +422,34 @@
 
 @section('scripts')
 <script>
+function citySelect(field, initialValue) {
+    return {
+        search: initialValue || '',
+        selected: initialValue || '',
+        open: false,
+        cities: @json($cities ?? []),
+        get filteredCities() {
+            if (!this.search) return this.cities;
+            const q = this.search.toLowerCase();
+            return this.cities.filter(c => c.name.toLowerCase().includes(q) || c.province.toLowerCase().includes(q));
+        },
+        filterCities() {
+            this.open = true;
+        },
+        selectCity(city) {
+            this.selected = city.name;
+            this.search = city.name;
+            this.open = false;
+            // Sync with bookingForm
+            const form = document.querySelector('[x-data="bookingForm()"]');
+            if (form && form.__x) {
+                form.__x.$data[field === 'origin' ? 'origin' : 'destination'] = city.name;
+                form.__x.$data.resetRate();
+            }
+        }
+    }
+}
+
 function bookingForm() {
     return {
         origin: '{{ old("origin_city", "") }}',

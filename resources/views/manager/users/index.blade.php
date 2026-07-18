@@ -17,6 +17,10 @@
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             Karyawan
         </a>
+        <a href="{{ route('manager.customers.index') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800/60 transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            Customer
+        </a>
         <div class="my-2 h-px bg-slate-800"></div>
         <a href="{{ route('manager.report') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800/60 transition">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -29,7 +33,7 @@
         <div class="mb-7 flex items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-white">Manajemen Karyawan</h1>
-                <p class="text-sm text-slate-400 mt-1">{{ $users->count() }} karyawan aktif</p>
+                <p class="text-sm text-slate-400 mt-1">Daftar staf, kurir, dan admin cabang</p>
             </div>
             <a href="{{ route('manager.users.create') }}"
                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-lg shadow-blue-950/50 transition">
@@ -52,6 +56,7 @@
                             <th class="px-6 py-3 text-left">Peran</th>
                             <th class="px-6 py-3 text-left">Cabang</th>
                             <th class="px-6 py-3 text-left">Email</th>
+                            <th class="px-6 py-3 text-center">Status</th>
                             <th class="px-6 py-3 text-right">Aksi</th>
                         </tr>
                     </thead>
@@ -77,18 +82,31 @@
                             </td>
                             <td class="px-6 py-4 text-slate-300">{{ $user->branch->name ?? '—' }}</td>
                             <td class="px-6 py-4 text-slate-400 text-xs">{{ $user->email }}</td>
+                            <td class="px-6 py-4 text-center">
+                                @if($user->is_active)
+                                    <span class="text-xs font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full">
+                                        Aktif
+                                    </span>
+                                @else
+                                    <span class="text-xs font-semibold bg-red-950/60 text-red-400 border border-red-800/50 px-2.5 py-0.5 rounded-full">
+                                        Nonaktif
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
                                     <a href="{{ route('manager.users.edit', $user) }}"
                                        class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded transition">
                                         Edit
                                     </a>
-                                    <form method="POST" action="{{ route('manager.users.destroy', $user) }}"
-                                          onsubmit="return confirm('Nonaktifkan karyawan {{ $user->name }}?')">
-                                        @csrf @method('DELETE')
+                                    <form method="POST" action="{{ route('manager.users.toggle-active', $user) }}"
+                                          onsubmit="return confirm('{{ $user->is_active ? 'Nonaktifkan' : 'Aktifkan' }} karyawan {{ $user->name }}?')">
+                                        @csrf
                                         <button type="submit"
-                                                class="text-xs bg-red-950/60 hover:bg-red-900/80 text-red-400 px-3 py-1.5 rounded transition border border-red-900/40">
-                                            Nonaktifkan
+                                                class="text-xs px-3 py-1.5 rounded transition border {{ $user->is_active 
+                                                    ? 'bg-red-950/60 hover:bg-red-900/80 text-red-400 border-red-900/40' 
+                                                    : 'bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-400 border-emerald-900/40' }}">
+                                            {{ $user->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
                                         </button>
                                     </form>
                                 </div>

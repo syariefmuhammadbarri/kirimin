@@ -1,12 +1,14 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="flex flex-col items-center justify-center min-h-[70vh]">
+<div class="flex flex-col items-center justify-center min-h-[70vh] py-8">
     <div class="w-full max-w-md p-8 rounded-2xl glass-panel shadow-2xl border border-slate-800/80">
         <!-- Header -->
         <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold tracking-tight text-slate-900 mb-2">Selamat Datang Kembali</h1>
-            <p class="text-sm text-slate-600">Masuk ke akun BAZMA Express Anda</p>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 mb-2">{{ $loginType === 'staff' ? 'Login Staff' : 'Login Customer' }}</h1>
+            <p class="text-sm text-slate-600">
+                {{ $loginType === 'staff' ? 'Masuk sebagai Admin, Kurir, Manager, atau Owner' : 'Masuk ke akun customer BAZMA Express Anda' }}
+            </p>
         </div>
 
         @if (session('status'))
@@ -18,6 +20,7 @@
         <!-- Form -->
         <form method="POST" action="{{ route('login') }}" class="space-y-6">
             @csrf
+            <input type="hidden" name="login_type" value="{{ $loginType }}">
 
             <!-- Email -->
             <div>
@@ -70,13 +73,22 @@
             </div>
         </form>
 
-        <!-- Footer -->
-        <div class="mt-8 text-center text-sm text-slate-600">
-            Belum punya akun? 
+        <!-- Back to role selection -->
+        <div class="mt-6 text-center">
+            <a href="{{ route('login.choose') }}" class="text-sm text-slate-500 hover:text-slate-700 transition">
+                &larr; Pilih tipe login lain
+            </a>
+        </div>
+
+        <!-- Footer - Only show register for customer -->
+        @if($loginType === 'customer')
+        <div class="mt-6 text-center text-sm text-slate-600">
+            Belum punya akun customer? 
             <a href="{{ route('register') }}" class="font-medium text-blue-600 hover:text-blue-500 transition">
                 Daftar Sekarang
             </a>
         </div>
+        @endif
     </div>
 </div>
 @endsection

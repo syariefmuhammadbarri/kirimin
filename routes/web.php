@@ -2,8 +2,12 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Branch\BranchAdminController;
+use App\Http\Controllers\Branch\WalkInBookingController;
 use App\Http\Controllers\Courier\CourierController;
 use App\Http\Controllers\Customer\CustomerController;
+use App\Http\Controllers\Customer\NotificationController;
+use App\Http\Controllers\Customer\ProfileController;
+use App\Http\Controllers\Customer\ShipmentCancelController;
 use App\Http\Controllers\Manager\LandingContentController;
 use App\Http\Controllers\Manager\ManagerController;
 use App\Http\Controllers\Manager\SettingController;
@@ -23,11 +27,19 @@ Route::post('/webhook/midtrans', [MidtransWebhookController::class, 'handleNotif
 
 // Authentication Guest Routes
 Route::middleware('guest')->group(function () {
-    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('recaptcha');
+    // Step 1: Role selection page (Staff vs Customer)
+    Route::get('/login', [AuthController::class, 'showLoginChoice'])->name('login.choose');
+    // Step 2: Login form for specific type
+    Route::get('/login/{type}', [AuthController::class, 'showLoginForm'])->name('login.form');
+    // Step 3: Process login
+    Route::post('/login', [AuthController::class, 'login'])->middleware('recaptcha')->name('login');
     
-    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-    Route::post('/register', [AuthController::class, 'register'])->middleware('recaptcha');
+    // Step 1: Role selection page for registration (Staff vs Customer)
+    Route::get('/register', [AuthController::class, 'showRegisterChoice'])->name('register.choose');
+    // Step 2: Registration form for specific type
+    Route::get('/register/{type}', [AuthController::class, 'showRegisterForm'])->name('register.form');
+    // Step 3: Process registration
+    Route::post('/register', [AuthController::class, 'register'])->middleware('recaptcha')->name('register');
 
     Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
@@ -40,6 +52,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/email/verify', [AuthController::class, 'verificationNotice'])->name('verification.notice');
+    // OTP-based email verification (replaces email link verification)
+    Route::post('/email/verify/otp', [AuthController::class, 'verifyWithOtp'])
+        ->name('verification.verify-otp');
+    Route::post('/email/verify/resend-otp', [AuthController::class, 'resendOtp'])
+        ->middleware('throttle:1,5')
+        ->name('verification.resend-otp');
+    // Keep old routes for backward compatibility but they won't be used
     Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
         ->middleware(['signed', 'throttle:6,1'])
         ->name('verification.verify');
@@ -60,13 +79,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/payment/{shipment}', [CustomerController::class, 'paymentDetails'])->name('payment.details');
         Route::post('/payment/mock-settle/{shipment}', [CustomerController::class, 'mockSettlePayment'])->name('payment.mock-settle');
         Route::get('/invoice/{shipment}', [CustomerController::class, 'downloadInvoice'])->name('invoice.download');
+        // FR-01: Cancel shipment oleh customer
+        Route::post('/shipment/{shipment}/cancel', [ShipmentCancelController::class, 'cancel'])->name('shipment.cancel');
+        // FR-11: Profil customer
+        Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
+        Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        // FR-08: Notifikasi inbox
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications');
+        Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     });
 
     // Branch Admin Role
     Route::middleware('role:admin_cabang')->prefix('branch')->name('branch.')->group(function () {
+
         Route::get('/dashboard', [BranchAdminController::class, 'dashboard'])->name('dashboard');
         Route::get('/scan', [BranchAdminController::class, 'showScan'])->name('scan.show');
         Route::post('/scan', [BranchAdminController::class, 'processScan'])->name('scan.process');
+        Route::get('/shipment/{shipment}/process', [BranchAdminController::class, 'processPage'])->name('shipment.process');
         Route::post('/process-weigh/{shipment}', [BranchAdminController::class, 'processWeigh'])->name('process-weigh');
         Route::post('/confirm-cash/{shipment}', [BranchAdminController::class, 'confirmCashPayment'])->name('confirm-cash');
         Route::post('/assign-courier/{shipment}', [BranchAdminController::class, 'assignCourier'])->name('assign-courier');
@@ -76,6 +106,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/reports', [BranchAdminController::class, 'downloadBranchReport'])->name('reports');
         Route::post('/send-transit/{shipment}', [BranchAdminController::class, 'sendTransit'])->name('send-transit');
         Route::post('/receive-transit/{shipment}', [BranchAdminController::class, 'receiveTransit'])->name('receive-transit');
+        // FR-07: Walk-in booking oleh admin cabang
+        Route::get('/booking-walkin', [WalkInBookingController::class, 'create'])->name('booking-walkin.create');
+        Route::post('/booking-walkin', [WalkInBookingController::class, 'store'])->name('booking-walkin.store');
     });
 
     // Courier Role
@@ -87,6 +120,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/out-for-delivery/{shipment}', [CourierController::class, 'outForDelivery'])->name('out-for-delivery');
         Route::post('/deliver/{shipment}', [CourierController::class, 'deliver'])->name('deliver');
         Route::post('/fail/{shipment}', [CourierController::class, 'failDelivery'])->name('fail');
+        // Fase 3: Retry pengantaran yang gagal
+        Route::post('/retry/{shipment}', [CourierController::class, 'retryDelivery'])->name('retry');
     });
 
     // Manager / Super Admin Role
@@ -130,6 +165,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/landing-contents/{landingContent}', [LandingContentController::class, 'destroy'])->name('landing-contents.destroy');
 
         Route::get('/report', [ManagerController::class, 'downloadReport'])->name('report');
+
+        // FR-09: Moderasi akun staff
+        Route::post('/users/{user}/toggle-active', [ManagerController::class, 'toggleUserActive'])->name('users.toggle-active');
+
+        // FR-10: Manajemen akun customer
+        Route::get('/customers', [ManagerController::class, 'listCustomers'])->name('customers.index');
+        Route::post('/customers/{customer}/toggle-suspend', [ManagerController::class, 'toggleCustomerSuspend'])->name('customers.toggle-suspend');
     });
 
     // Owner Role

@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
@@ -18,69 +18,176 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    public function showLogin()
+    /**
+     * Step 1: Show role selection page (Staff vs Customer).
+     */
+    public function showLoginChoice()
     {
-        return view('auth.login');
+        return view('auth.login-choose');
     }
 
+    /**
+     * Step 2: Show login form for the selected type.
+     */
+    public function showLoginForm(string $type)
+    {
+        if (!in_array($type, ['staff', 'customer'])) {
+            return redirect()->route('login.choose');
+        }
+        return view('auth.login', ['loginType' => $type]);
+    }
+
+    /**
+     * Step 3: Process login with role validation.
+     */
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'string', 'email'],
+        $validated = $request->validate([
+            'email'    => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            'login_type' => ['required', 'in:staff,customer'],
         ]);
+
+        $loginType = $validated['login_type'];
+        $credentials = [
+            'email'    => $validated['email'],
+            'password' => $validated['password'],
+        ];
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
-            // Redirect based on Spatie roles
             $user = Auth::user();
+
+            // FR-09: Staff nonaktif tidak boleh login
+            if (!$user->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+                return redirect()->route('login.form', $loginType)->withErrors([
+                    'email' => 'Akun Anda telah dinonaktifkan oleh administrator. Hubungi manager untuk informasi lebih lanjut.',
+                ])->onlyInput('email');
+            }
+
+            // FR-10: Customer yang di-suspend tidak boleh login
+            if ($user->hasRole('customer')) {
+                $customer = $user->customer ?? null;
+                if ($customer && $customer->is_suspended) {
+                    Auth::logout();
+                    $request->session()->invalidate();
+                    return redirect()->route('login.form', $loginType)->withErrors([
+                        'email' => 'Akun customer Anda telah ditangguhkan. Hubungi customer service untuk informasi lebih lanjut.',
+                    ])->onlyInput('email');
+                }
+            }
+
+            // Validate login_type matches user role
+            $isStaff = $user->hasAnyRole(['manager', 'owner', 'admin_cabang', 'kurir']);
+            $isCustomer = $user->hasRole('customer');
+
+            if ($loginType === 'staff' && !$isStaff) {
+                Auth::logout();
+                $request->session()->invalidate();
+                return redirect()->route('login.form', 'staff')->withErrors([
+                    'email' => 'Akun ini bukan akun staff. Silakan pilih "Customer" untuk login.',
+                ])->onlyInput('email');
+            }
+
+            if ($loginType === 'customer' && !$isCustomer) {
+                Auth::logout();
+                $request->session()->invalidate();
+                return redirect()->route('login.form', 'customer')->withErrors([
+                    'email' => 'Akun ini bukan akun customer. Silakan pilih "Staff" untuk login.',
+                ])->onlyInput('email');
+            }
+
             return redirect()->intended($this->getRedirectPathForUser($user));
         }
 
-        return back()->withErrors([
+        return redirect()->route('login.form', $loginType)->withErrors([
             'email' => 'Email atau password yang Anda masukkan salah.',
         ])->onlyInput('email');
     }
 
-    public function showRegister()
+    /**
+     * Step 1: Show role selection page for registration (Staff vs Customer).
+     */
+    public function showRegisterChoice()
     {
-        return view('auth.register');
+        return view('auth.register-choose');
     }
 
+    /**
+     * Step 2: Show registration form for the selected type.
+     */
+    public function showRegisterForm(string $type)
+    {
+        if (!in_array($type, ['staff', 'customer'])) {
+            return redirect()->route('register.choose');
+        }
+        return view('auth.register', ['registerType' => $type]);
+    }
+
+    /**
+     * Step 3: Process registration with role assignment.
+     * Simplified: only name, email, password (no phone/address/city).
+     */
     public function register(Request $request)
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => ['required', 'string', 'max:20'],
-            'address' => ['required', 'string'],
-            'city' => ['required', 'string', 'max:100'],
+            'register_type' => ['required', 'in:staff,customer'],
         ]);
+
+        $registerType = $request->register_type;
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password), // cost factor 12 is Laravel default configured in bcrypt config
+            'password' => Hash::make($request->password),
         ]);
 
-        // Assign Spatie Role 'customer'
-        $user->assignRole('customer');
+        if ($registerType === 'customer') {
+            // Assign Spatie Role 'customer'
+            $user->assignRole('customer');
 
-        // Create Customer profile
-        Customer::create([
-            'user_id' => $user->id,
-            'phone' => $request->phone,
-            'address' => $request->address,
-            'city' => $request->city,
-        ]);
+            // Create minimal Customer profile (phone/address/city will be filled later via Profile page)
+            Customer::create([
+                'user_id' => $user->id,
+                'phone' => '',
+                'address' => '',
+                'city' => '',
+            ]);
+        } else {
+            // Staff registration — assign default 'kurir' role (manager can change later)
+            $user->assignRole('kurir');
+        }
 
-        event(new Registered($user));
+        // Generate OTP verification code
+        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $user->verification_code = Hash::make($otp);
+        $user->verification_code_expires_at = now()->addMinutes(30);
+        $user->save();
+
+        // Send OTP via email
+        try {
+            Mail::send('emails.verification-otp', [
+                'name' => $user->name,
+                'otp' => $otp,
+                'email' => $user->email,
+            ], function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Kode Verifikasi Akun BAZMA Express');
+            });
+        } catch (\Exception $e) {
+            Log::warning('Failed to send OTP email to ' . $user->email . ': ' . $e->getMessage());
+        }
 
         Auth::login($user);
 
-        return redirect()->route('verification.notice');
+        return redirect()->route('verification.notice')
+            ->with('status', 'Kode verifikasi telah dikirim ke email Anda.');
     }
 
     public function logout(Request $request)
@@ -99,40 +206,82 @@ class AuthController extends Controller
         return view('auth.verify-email');
     }
 
-    public function verifyEmail(Request $request, $id, $hash)
+    /**
+     * Verify email using OTP code instead of email link.
+     */
+    public function verifyWithOtp(Request $request)
     {
-        $user = User::findOrFail($id);
+        $request->validate([
+            'otp' => 'required|string|size:6',
+        ]);
 
-        if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
-            return abort(403, 'Tautan verifikasi tidak sah.');
-        }
+        $user = Auth::user();
 
         if ($user->hasVerifiedEmail()) {
             return redirect()->route('customer.dashboard');
         }
 
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-
-            // Also mark customer profile as verified
-            $customer = Customer::where('user_id', $user->id)->first();
-            if ($customer) {
-                $customer->update(['email_verified_at' => now()]);
-            }
+        // Check if OTP is expired
+        if (!$user->verification_code_expires_at || now()->gt($user->verification_code_expires_at)) {
+            return back()->withErrors([
+                'otp' => 'Kode verifikasi sudah kedaluwarsa. Silakan kirim ulang kode baru.',
+            ]);
         }
 
-        return redirect()->route('customer.dashboard')->with('verified', true);
+        // Verify OTP
+        if (!Hash::check($request->otp, $user->verification_code)) {
+            return back()->withErrors([
+                'otp' => 'Kode verifikasi yang Anda masukkan salah.',
+            ]);
+        }
+
+        // Mark email as verified
+        $user->markEmailAsVerified();
+        $user->verification_code = null;
+        $user->verification_code_expires_at = null;
+        $user->save();
+
+        // Also mark customer profile as verified
+        $customer = Customer::where('user_id', $user->id)->first();
+        if ($customer) {
+            $customer->update(['email_verified_at' => now()]);
+        }
+
+        return redirect()->intended($this->getRedirectPathForUser($user))->with('verified', true);
     }
 
-    public function resendVerification(Request $request)
+    /**
+     * Resend OTP verification code.
+     */
+    public function resendOtp(Request $request)
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        $user = Auth::user();
+
+        if ($user->hasVerifiedEmail()) {
             return redirect()->route('customer.dashboard');
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        // Generate new OTP
+        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $user->verification_code = Hash::make($otp);
+        $user->verification_code_expires_at = now()->addMinutes(30);
+        $user->save();
 
-        return back()->with('status', 'verification-link-sent');
+        // Send OTP via email
+        try {
+            Mail::send('emails.verification-otp', [
+                'name' => $user->name,
+                'otp' => $otp,
+                'email' => $user->email,
+            ], function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Kode Verifikasi Akun BAZMA Express');
+            });
+        } catch (\Exception $e) {
+            Log::warning('Failed to resend OTP email to ' . $user->email . ': ' . $e->getMessage());
+        }
+
+        return back()->with('status', 'Kode verifikasi baru telah dikirim ke email Anda.');
     }
 
     /**
@@ -202,7 +351,7 @@ class AuthController extends Controller
         );
 
         return $status === Password::PASSWORD_RESET
-            ? redirect()->route('login')->with('status', __($status))
+            ? redirect()->route('login.choose')->with('status', __($status))
             : back()->withErrors(['email' => __($status)]);
     }
 }

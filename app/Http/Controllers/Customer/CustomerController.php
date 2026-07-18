@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\LandingContent;
 use App\Models\Payment;
 use App\Models\Rate;
+use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
 use App\Models\ShipmentTracking;
@@ -84,9 +85,9 @@ class CustomerController extends Controller
         if (!$customer) {
             $customer = Customer::create([
                 'user_id' => $user->id,
-                'phone' => '',
+                'phone'   => '',
                 'address' => '',
-                'city' => '',
+                'city'    => '',
             ]);
         }
 
@@ -95,12 +96,21 @@ class CustomerController extends Controller
             ->latest()
             ->paginate(10);
 
-        return view('customer.dashboard', compact('shipments', 'customer'));
+        // Summary stat cards — single query aggregation
+        $allShipments = Shipment::where('customer_id', $customer->id)->get();
+        $stats = [
+            'total'          => $allShipments->count(),
+            'pending_payment'=> $allShipments->whereIn('status', ['booking_created', 'payment_pending'])->count(),
+            'in_progress'    => $allShipments->whereNotIn('status', ['booking_created', 'payment_pending', 'delivered', 'cancelled', 'returned'])->count(),
+            'delivered'      => $allShipments->where('status', 'delivered')->count(),
+        ];
+
+        return view('customer.dashboard', compact('shipments', 'customer', 'stats'));
     }
 
     public function showBooking()
     {
-        $cities = Rate::select('origin_city')->distinct()->pluck('origin_city');
+        $cities = \App\Models\City::orderBy('province')->orderBy('name')->get();
         return view('customer.booking', compact('cities'));
     }
 
@@ -224,17 +234,19 @@ class CustomerController extends Controller
             ]);
 
             // 4. Create Payment transaction entry
+            $expiryHours = (int) Setting::getValue('booking_expiry_hours', 24);
             $payment = Payment::create([
-                'order_id' => $trackingNumber,
-                'shipment_id' => $shipment->id,
-                'amount' => $rateDetails['total_price'],
+                'order_id'       => $trackingNumber,
+                'shipment_id'    => $shipment->id,
+                'amount'         => $rateDetails['total_price'],
                 'payment_method' => 'transfer',
                 'payment_status' => 'pending',
+                'expired_at'     => now()->addHours($expiryHours),
             ]);
 
             $shipment->update(['payment_id' => $payment->id]);
 
-            // Generate Snap Token
+            // Generate Snap Token (hanya untuk online payment)
             $snapToken = $this->midtransService->getSnapToken($shipment);
             $payment->update(['snap_token' => $snapToken]);
 
@@ -244,7 +256,7 @@ class CustomerController extends Controller
             Log::info("Shipment Booking Successful: " . $trackingNumber);
 
             return redirect()->route('customer.dashboard')
-                ->with('success', 'Booking pengiriman berhasil dibuat. Silakan lakukan pembayaran.')
+                ->with('success', 'Booking pengiriman berhasil dibuat! Selesaikan pembayaran dalam ' . $expiryHours . ' jam.')
                 ->with('qr_code', $qrCodeBase64)
                 ->with('booking_code', $bookingCode);
         });
@@ -279,6 +291,11 @@ class CustomerController extends Controller
 
     public function mockSettlePayment(Shipment $shipment)
     {
+        // Guard: hanya tersedia di lingkungan development/testing
+        if (!app()->environment('local', 'testing')) {
+            abort(403, 'Fitur simulasi pembayaran hanya tersedia di lingkungan pengembangan.');
+        }
+
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
         if (!$customer || $shipment->customer_id !== $customer->id) {

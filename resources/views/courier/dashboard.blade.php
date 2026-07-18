@@ -293,6 +293,7 @@
                             <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Penerima</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tujuan</th>
                             <th class="px-5 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                            <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-black/5">
@@ -306,6 +307,23 @@
                                     {{ $shipment->status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200' }}">
                                     {{ $shipment->status === 'delivered' ? 'Terkirim' : 'Gagal' }}
                                 </span>
+                            </td>
+                            <td class="px-5 py-3 text-right">
+                                @if($shipment->status === 'gagal_kirim')
+                                    @php $maxAttempts = (int) \App\Models\Setting::getValue('max_delivery_attempts', 3); @endphp
+                                    @if($shipment->delivery_attempt_count < $maxAttempts)
+                                        <form method="POST" action="{{ route('courier.retry', $shipment) }}" class="inline-block" onsubmit="return confirm('Coba kirim kembali paket ini?')">
+                                            @csrf
+                                            <button type="submit" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded transition font-medium shadow-sm">
+                                                Coba Kirim Lagi ({{ $shipment->delivery_attempt_count }}/{{ $maxAttempts }})
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="text-xs text-red-600 font-medium">Batas Retry Habis ({{ $shipment->delivery_attempt_count }}/{{ $maxAttempts }})</span>
+                                    @endif
+                                @else
+                                    <span class="text-xs text-slate-400 font-mono">Lunas</span>
+                                @endif
                             </td>
                         </tr>
                         @endforeach

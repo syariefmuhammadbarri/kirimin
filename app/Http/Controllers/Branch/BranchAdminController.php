@@ -89,11 +89,8 @@ class BranchAdminController extends Controller
         ]);
 
         $code = $request->booking_code;
-        $admin = Auth::user();
-        $branch = Branch::findOrFail($admin->branch_id);
 
-        $shipment = Shipment::with(['customer', 'items', 'payment'])
-            ->where('booking_code', $code)
+        $shipment = Shipment::where('booking_code', $code)
             ->orWhere('tracking_number', $code)
             ->first();
 
@@ -101,10 +98,20 @@ class BranchAdminController extends Controller
             return back()->with('error', 'Kode Booking atau Nomor Resi tidak ditemukan.');
         }
 
+        return redirect()->route('branch.shipment.process', $shipment);
+    }
+
+    public function processPage(Shipment $shipment)
+    {
+        $admin = Auth::user();
+        $branch = Branch::findOrFail($admin->branch_id);
+
         // Validate branch assignment (origin city should match admin's branch city, or update branch_id)
         if (empty($shipment->branch_id)) {
             $shipment->update(['branch_id' => $admin->branch_id]);
         }
+
+        $shipment->load(['customer', 'items', 'payment']);
 
         return view('branch.process_booking', compact('shipment', 'branch'));
     }
@@ -175,13 +182,26 @@ class BranchAdminController extends Controller
                 'status' => $status,
                 'tracked_at' => now(),
             ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange($status, $desc, $branch->city);
         });
 
-        return redirect()->route('branch.dashboard')->with('success', 'Paket berhasil ditimbang dan diproses.');
+        return redirect()->route('branch.shipment.process', $shipment)->with('success', 'Paket berhasil ditimbang dan diproses.');
     }
 
-    public function confirmCashPayment(Shipment $shipment)
+    public function confirmCashPayment(Request $request, Shipment $shipment)
     {
+        // FR-02: Pickup wajib bayar online — cash hanya untuk dropoff
+        if ($shipment->fulfillment_type === 'pickup') {
+            return back()->with('error', 'Paket dengan layanan jemput (pickup) tidak dapat dibayar tunai di outlet.');
+        }
+
+        // FR-03: Wajib input nominal uang diterima
+        $request->validate([
+            'paid_amount' => 'required|numeric|min:0',
+        ]);
+
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
 
@@ -190,10 +210,16 @@ class BranchAdminController extends Controller
             abort(404);
         }
 
-        DB::transaction(function () use ($shipment, $payment, $branch) {
+        // Validasi nominal tidak boleh kurang dari tagihan
+        if ((float) $request->paid_amount < (float) $shipment->total_price) {
+            return back()->with('error', 'Nominal yang diterima (Rp ' . number_format($request->paid_amount, 0, ',', '.') . ') kurang dari tagihan (Rp ' . number_format($shipment->total_price, 0, ',', '.') . ').');
+        }
+
+        DB::transaction(function () use ($request, $shipment, $payment, $branch) {
             $payment->update([
                 'payment_status' => 'paid',
-                'payment_method' => 'cash'
+                'payment_method' => 'cash',
+                'paid_amount'    => $request->paid_amount,
             ]);
 
             // Transition status
@@ -201,16 +227,18 @@ class BranchAdminController extends Controller
                 'status' => 'received_at_branch'
             ]);
 
+            $kembalian = (float) $request->paid_amount - (float) $shipment->total_price;
+
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
-                'location' => $branch->city,
-                'description' => 'Pembayaran tunai diterima di outlet. Paket masuk gudang cabang.',
-                'status' => 'received_at_branch',
-                'tracked_at' => now(),
+                'location'    => $branch->city,
+                'description' => 'Pembayaran tunai diterima di outlet. Nominal: Rp ' . number_format($request->paid_amount, 0, ',', '.') . '. Kembalian: Rp ' . number_format($kembalian, 0, ',', '.') . '. Paket masuk gudang cabang.',
+                'status'      => 'received_at_branch',
+                'tracked_at'  => now(),
             ]);
         });
 
-        return back()->with('success', 'Pembayaran cash berhasil dikonfirmasi.');
+        return redirect()->route('branch.shipment.process', $shipment)->with('success', 'Pembayaran cash berhasil dikonfirmasi. Kembalian: Rp ' . number_format((float) $request->paid_amount - (float) $shipment->total_price, 0, ',', '.') . '.');
     }
 
     public function assignCourier(Request $request, Shipment $shipment)
@@ -223,6 +251,11 @@ class BranchAdminController extends Controller
         $courier = User::findOrFail($request->courier_id);
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
+
+        // FR-05: Validasi kurir harus berasal dari cabang yang sama dengan admin yang meng-assign
+        if ($courier->branch_id !== $admin->branch_id) {
+            return back()->with('error', 'Kurir ' . $courier->name . ' tidak terdaftar di cabang ' . $branch->name . '. Pilih kurir dari cabang yang sama.');
+        }
 
         // Check courier availability: max 5 active assignments
         $activeCount = CourierAssignment::where('courier_id', $courier->id)
@@ -269,7 +302,7 @@ class BranchAdminController extends Controller
             ]);
         });
 
-        return back()->with('success', "Kurir {$courier->name} berhasil ditugaskan untuk paket {$shipment->tracking_number}.");
+        return redirect()->route('branch.shipment.process', $shipment)->with('success', "Kurir {$courier->name} berhasil ditugaskan untuk paket {$shipment->tracking_number}.");
     }
 
     public function viewAssignments()
@@ -392,7 +425,7 @@ class BranchAdminController extends Controller
             ]);
         });
 
-        return back()->with('success', "Paket dikirim transit menuju {$nextBranch->name}.");
+        return redirect()->route('branch.shipment.process', $shipment)->with('success', "Paket dikirim transit menuju {$nextBranch->name}.");
     }
 
     public function receiveTransit(Shipment $shipment)
@@ -486,6 +519,6 @@ class BranchAdminController extends Controller
             ]);
         });
 
-        return back()->with('success', "Kurir {$courier->name} ditugaskan untuk menjemput paket.");
+        return redirect()->route('branch.shipment.process', $shipment)->with('success', "Kurir {$courier->name} ditugaskan untuk menjemput paket.");
     }
 }

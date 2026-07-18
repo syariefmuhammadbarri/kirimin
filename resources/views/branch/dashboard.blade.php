@@ -175,7 +175,7 @@
 
                                 {{-- Scan/Process --}}
                                 @if(in_array($shipment->status, ['waiting_dropoff', 'picked_up_from_customer']))
-                                <a href="{{ route('branch.scan.show') }}" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-2.5 py-1.5 rounded transition">
+                                <a href="{{ route('branch.shipment.process', $shipment) }}" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-2.5 py-1.5 rounded transition">
                                     Proses / Timbang
                                 </a>
                                 @endif

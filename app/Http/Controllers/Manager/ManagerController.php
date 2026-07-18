@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Manager;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Services\ReportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -216,9 +218,9 @@ class ManagerController extends Controller
     public function downloadReport(Request $request)
     {
         $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
+        $endDate   = $request->input('end_date');
 
-        $paymentQuery = Payment::query();
+        $paymentQuery  = Payment::query();
         $shipmentQuery = Shipment::query();
 
         if ($startDate) {
@@ -233,14 +235,14 @@ class ManagerController extends Controller
         $shipments = (clone $shipmentQuery)->with(['payment'])->get();
 
         $metrics = [
-            'total_revenue' => (clone $paymentQuery)->where('payment_status', 'paid')->sum('amount'),
-            'total_shipments' => $shipments->count(),
-            'delivery_success_rate' => $shipments->count() > 0 
-                ? ($shipments->where('status', 'delivered')->count() / $shipments->count()) * 100 
+            'total_revenue'         => (clone $paymentQuery)->where('payment_status', 'paid')->sum('amount'),
+            'total_shipments'       => $shipments->count(),
+            'delivery_success_rate' => $shipments->count() > 0
+                ? ($shipments->where('status', 'delivered')->count() / $shipments->count()) * 100
                 : 100.0,
-            'branches' => [],
-            'couriers' => [],
-            'status_distribution' => $shipments->groupBy('status')->map->count()->toArray()
+            'branches'              => [],
+            'couriers'              => [],
+            'status_distribution'   => $shipments->groupBy('status')->map->count()->toArray()
         ];
 
         // Branch breakdown - OPTIMIZED
@@ -256,9 +258,9 @@ class ManagerController extends Controller
         foreach ($branches as $branch) {
             $branchShipmentsCount = (clone $shipmentQuery)->where('branch_id', $branch->id)->count();
             $metrics['branches'][] = [
-                'name' => $branch->name,
-                'shipments_count' => $branchShipmentsCount,
-                'revenue' => $branchRevenues[$branch->id] ?? 0,
+                'name'             => $branch->name,
+                'shipments_count'  => $branchShipmentsCount,
+                'revenue'          => $branchRevenues[$branch->id] ?? 0,
             ];
         }
 
@@ -276,19 +278,95 @@ class ManagerController extends Controller
 
         $couriers = User::role('kurir')->with('branch')->get();
         foreach ($couriers as $courier) {
-            $jobsInfo = $courierJobs->get($courier->id);
-            $totalJobs = $jobsInfo ? $jobsInfo->total_jobs : 0;
+            $jobsInfo      = $courierJobs->get($courier->id);
+            $totalJobs     = $jobsInfo ? $jobsInfo->total_jobs : 0;
             $deliveredJobs = $jobsInfo ? $jobsInfo->delivered_jobs : 0;
             $metrics['couriers'][] = [
-                'name' => $courier->name,
-                'branch_name' => $courier->branch->name ?? 'Gudang Utama',
-                'total_jobs' => $totalJobs,
-                'delivered_jobs' => $deliveredJobs,
-                'success_rate' => $totalJobs > 0 ? ($deliveredJobs / $totalJobs) * 100 : 100.0
+                'name'          => $courier->name,
+                'branch_name'   => $courier->branch->name ?? 'Gudang Utama',
+                'total_jobs'    => $totalJobs,
+                'delivered_jobs'=> $deliveredJobs,
+                'success_rate'  => $totalJobs > 0 ? ($deliveredJobs / $totalJobs) * 100 : 100.0
             ];
         }
 
         $pdf = $this->reportService->generateStrategicReport($metrics);
         return $pdf->download('laporan-operasional-perusahaan.pdf');
+    }
+
+    // --- MODERASI AKUN STAFF (FR-09) ---
+
+    /**
+     * Toggle is_active untuk staff (admin_cabang / kurir) tanpa menghapus data.
+     */
+    public function toggleUserActive(User $user)
+    {
+        // Guard: tidak bisa nonaktifkan diri sendiri
+        if ($user->id === Auth::id()) {
+            return back()->with('error', 'Anda tidak dapat menonaktifkan akun Anda sendiri.');
+        }
+
+        // Guard: hanya untuk role staff, bukan manager/owner
+        if ($user->hasAnyRole(['manager', 'owner'])) {
+            return back()->with('error', 'Tidak dapat mengubah status akun manager atau owner.');
+        }
+
+        $newStatus = !$user->is_active;
+        $user->update(['is_active' => $newStatus]);
+
+        $label = $newStatus ? 'diaktifkan' : 'dinonaktifkan';
+        return back()->with('success', "Akun {$user->name} berhasil {$label}.");
+    }
+
+    // --- MODERASI AKUN CUSTOMER (FR-10) ---
+
+    /**
+     * Daftar semua customer dengan statistik.
+     */
+    public function listCustomers(Request $request)
+    {
+        $search = $request->input('search');
+
+        $customers = Customer::with('user')
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('user', fn($u) => $u->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%"))
+                  ->orWhere('phone', 'like', "%{$search}%");
+            })
+            ->withCount('shipments')
+            ->latest()
+            ->paginate(20);
+
+        return view('manager.customers.index', compact('customers', 'search'));
+    }
+
+    /**
+     * Toggle is_suspended untuk customer.
+     * Guard: tidak bisa suspend customer yang punya shipment aktif.
+     */
+    public function toggleCustomerSuspend(Customer $customer)
+    {
+        // Jika akan di-suspend, cek apakah ada shipment aktif
+        if (!$customer->is_suspended) {
+            $activeStatuses = ['booking_created', 'payment_pending', 'waiting_dropoff',
+                              'pickup_scheduled', 'pickup_assigned', 'picked_up_from_customer',
+                              'weighed', 'received_at_branch', 'assigned_to_courier',
+                              'out_for_delivery', 'in_transit'];
+
+            $activeShipments = $customer->shipments()
+                ->whereIn('status', $activeStatuses)
+                ->count();
+
+            if ($activeShipments > 0) {
+                return back()->with('error', "Tidak dapat mensuspend akun ini — customer memiliki {$activeShipments} paket aktif yang belum selesai.");
+            }
+        }
+
+        $newStatus = !$customer->is_suspended;
+        $customer->update(['is_suspended' => $newStatus]);
+
+        $customerName = $customer->user?->name ?? $customer->phone;
+        $label = $newStatus ? 'ditangguhkan (suspended)' : 'diaktifkan kembali';
+        return back()->with('success', "Akun customer {$customerName} berhasil {$label}.");
     }
 }

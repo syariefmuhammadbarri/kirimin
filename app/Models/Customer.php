@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'phone', 'address', 'city', 'photo_path'])]
+#[Fillable(['user_id', 'phone', 'address', 'city', 'photo_path', 'is_suspended'])]
 class Customer extends Model
 {
     use HasFactory;
@@ -17,6 +17,7 @@ class Customer extends Model
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_suspended'      => 'boolean',
         ];
     }
 

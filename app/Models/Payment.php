@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['order_id', 'shipment_id', 'amount', 'payment_method', 'payment_status', 'snap_token'])]
+#[Fillable(['order_id', 'shipment_id', 'amount', 'payment_method', 'payment_status', 'snap_token', 'paid_amount', 'expired_at'])]
 class Payment extends Model
 {
     use HasFactory;
@@ -69,5 +69,24 @@ class Payment extends Model
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'expired_at' => 'datetime',
+            'amount'     => 'decimal:2',
+            'paid_amount'=> 'decimal:2',
+        ];
+    }
+
+    /**
+     * Kembalikan true jika batas waktu pembayaran sudah lewat dan payment masih pending.
+     */
+    public function isExpired(): bool
+    {
+        return $this->expired_at !== null
+            && $this->expired_at->isPast()
+            && $this->payment_status === 'pending';
     }
 }
