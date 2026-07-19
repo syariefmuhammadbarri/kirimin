@@ -31,6 +31,8 @@ class ShipmentTransactionSeeder extends Seeder
 
         $branchJkt = $branches->firstWhere('city', 'Jakarta');
         $branchBdg = $branches->firstWhere('city', 'Bandung');
+        $branchSby = $branches->firstWhere('city', 'Surabaya');
+        $branchMdn = $branches->firstWhere('city', 'Medan');
         $courierJkt = $couriers->firstWhere('branch_id', $branchJkt?->id);
         $courierBdg = $couriers->firstWhere('branch_id', $branchBdg?->id);
 
@@ -550,6 +552,120 @@ class ShipmentTransactionSeeder extends Seeder
             'tracked_at'  => now()->subDays(1),
         ]);
 
-        $this->command->info('8 sample transactional records seeded successfully!');
+        // ===== 9. DROPOFF — RECEIVED AT BRANCH (siap di-assign kurir pengantaran) =====
+        $shipment9 = Shipment::create([
+            'tracking_number'  => 'EXP-20260719-DROP9',
+            'booking_code'     => 'BK-20260719-DROP9',
+            'customer_id'      => $customer->id,
+            'branch_id'        => $branchJkt?->id,
+            'status'           => 'received_at_branch',
+            'fulfillment_type' => 'dropoff',
+            'origin_city'      => 'Jakarta',
+            'destination_city' => 'Bandung',
+            'sender_name'      => 'Ahmad Customer',
+            'sender_phone'     => '081234567890',
+            'sender_address'   => 'Jl. Jenderal Sudirman No. 25, Jakarta',
+            'receiver_name'    => 'Lina Penerima',
+            'receiver_phone'   => '081122334455',
+            'receiver_address' => 'Jl. Dago No. 12, Bandung',
+            'estimated_weight' => 3.00,
+            'actual_weight'    => 3.20,
+            'estimated_price'  => 36000,
+            'actual_price'     => 38400,
+            'total_price'      => 38400,
+            'service_type'     => 'regular',
+        ]);
+
+        ShipmentItem::create([
+            'shipment_id' => $shipment9->id,
+            'item_name'   => 'Paket Makanan Kering',
+            'quantity'    => 1,
+            'weight'      => 3.00,
+        ]);
+
+        $payment9 = Payment::create([
+            'order_id'       => $shipment9->tracking_number,
+            'shipment_id'    => $shipment9->id,
+            'amount'         => 38400,
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'paid_amount'    => 40000,
+        ]);
+        $shipment9->update(['payment_id' => $payment9->id]);
+
+        ShipmentTracking::create([
+            'shipment_id' => $shipment9->id,
+            'location'    => 'Jakarta',
+            'description' => 'Booking pengiriman dibuat oleh pengirim.',
+            'status'      => 'booking_created',
+            'tracked_at'  => now()->subHours(5),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment9->id,
+            'location'    => 'Jakarta',
+            'description' => 'Pembayaran cash diterima di Cabang Jakarta Pusat. Nominal: Rp 40.000. Kembalian: Rp 1.600.',
+            'status'      => 'received_at_branch',
+            'tracked_at'  => now()->subHours(4),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment9->id,
+            'location'    => 'Jakarta',
+            'description' => 'Paket ditimbang di outlet Jakarta Pusat. Berat Aktual: 3.20 kg. Pembayaran lunas, paket masuk gudang cabang.',
+            'status'      => 'received_at_branch',
+            'tracked_at'  => now()->subHours(3),
+        ]);
+
+        // ===== 10. PICKUP — PICKUP SCHEDULED (siap di-assign kurir jemput) =====
+        $shipment10 = Shipment::create([
+            'tracking_number'    => 'EXP-20260719-PIK10',
+            'booking_code'       => 'BK-20260719-PIK10',
+            'customer_id'        => $customer->id,
+            'branch_id'          => $branchJkt?->id,
+            'status'             => 'pickup_scheduled',
+            'fulfillment_type'   => 'pickup',
+            'pickup_address'     => 'Jl. Kebon Jeruk No. 7, Jakarta Barat',
+            'pickup_scheduled_at'=> now()->addHours(2),
+            'pickup_notes'       => 'Hubungi 30 menit sebelum sampai.',
+            'origin_city'        => 'Jakarta',
+            'destination_city'   => 'Surabaya',
+            'sender_name'        => 'Mega Pengirim',
+            'sender_phone'       => '087766554433',
+            'sender_address'     => 'Jl. Kebon Jeruk No. 7, Jakarta Barat',
+            'receiver_name'      => 'Nina Penerima',
+            'receiver_phone'     => '085511223344',
+            'receiver_address'   => 'Jl. Tunjungan No. 5, Surabaya',
+            'estimated_weight'   => 4.00,
+            'actual_weight'      => null,
+            'estimated_price'    => 80000,
+            'actual_price'       => null,
+            'total_price'        => 80000,
+            'service_type'       => 'express',
+        ]);
+
+        ShipmentItem::create([
+            'shipment_id' => $shipment10->id,
+            'item_name'   => 'Dokumen & Buku',
+            'quantity'    => 2,
+            'weight'      => 2.00,
+        ]);
+
+        $payment10 = Payment::create([
+            'order_id'       => $shipment10->tracking_number,
+            'shipment_id'    => $shipment10->id,
+            'amount'         => 80000,
+            'payment_method' => 'midtrans',
+            'payment_status' => 'paid',
+        ]);
+        $shipment10->update(['payment_id' => $payment10->id]);
+
+        ShipmentTracking::create([
+            'shipment_id' => $shipment10->id,
+            'location'    => 'Jakarta',
+            'description' => 'Booking dengan layanan Jemput Kurir. Pembayaran lunas via Midtrans.',
+            'status'      => 'pickup_scheduled',
+            'tracked_at'  => now()->subHour(),
+        ]);
+
+        $this->command->info('10 sample transactional records seeded successfully!');
     }
 }

@@ -9,14 +9,37 @@ class ShippingRateService
     /**
      * Calculate cost based on route, weight and service type
      */
+    /**
+     * Normalize city name by stripping "KOTA " or "KABUPATEN " prefix for rate lookup.
+     */
+    private function normalizeCityName(string $city): string
+    {
+        $normalized = trim(strtolower($city));
+        // Remove common prefixes like "kota ", "kabupaten " 
+        $prefixes = ['kota ', 'kabupaten '];
+        foreach ($prefixes as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                $normalized = substr($normalized, strlen($prefix));
+                break;
+            }
+        }
+        return trim($normalized);
+    }
+
     public function calculate(string $origin, string $destination, float $weight, string $serviceType = 'regular'): array
     {
-        $originClean = trim(strtolower($origin));
-        $destinationClean = trim(strtolower($destination));
+        $originClean = $this->normalizeCityName($origin);
+        $destinationClean = $this->normalizeCityName($destination);
 
-        // Find rate
-        $rate = Rate::whereRaw('LOWER(origin_city) = ?', [$originClean])
-            ->whereRaw('LOWER(destination_city) = ?', [$destinationClean])
+        // Find rate — match both raw and normalized city names
+        $rate = Rate::where(function($q) use ($originClean, $origin) {
+                $q->whereRaw('LOWER(origin_city) = ?', [$originClean])
+                  ->orWhereRaw('LOWER(origin_city) = ?', [trim(strtolower($origin))]);
+            })
+            ->where(function($q) use ($destinationClean, $destination) {
+                $q->whereRaw('LOWER(destination_city) = ?', [$destinationClean])
+                  ->orWhereRaw('LOWER(destination_city) = ?', [trim(strtolower($destination))]);
+            })
             ->first();
 
         // Default base rate and days if not found

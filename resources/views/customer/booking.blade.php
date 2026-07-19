@@ -125,7 +125,7 @@
                         <input type="text" x-ref="originInput" x-model="search" @input="filterCities" @focus="open = true" @click.away="open = false"
                                placeholder="Cari kota asal..."
                                class="form-input">
-                        <input type="hidden" name="origin_city" x-model="selected" @change="resetRate()">
+                        <input type="hidden" name="origin_city" :value="selected">
                         <div x-show="open && filteredCities.length > 0" 
                              class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg city-search-results">
                             <template x-for="city in filteredCities" :key="city.id">
@@ -145,7 +145,7 @@
                         <input type="text" x-ref="destInput" x-model="search" @input="filterCities" @focus="open = true" @click.away="open = false"
                                placeholder="Cari kota tujuan..."
                                class="form-input">
-                        <input type="hidden" name="destination_city" x-model="selected" @change="resetRate()">
+                        <input type="hidden" name="destination_city" :value="selected">
                         <div x-show="open && filteredCities.length > 0" 
                              class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg city-search-results">
                             <template x-for="city in filteredCities" :key="city.id">
@@ -440,12 +440,10 @@ function citySelect(field, initialValue) {
             this.selected = city.name;
             this.search = city.name;
             this.open = false;
-            // Sync with bookingForm
-            const form = document.querySelector('[x-data="bookingForm()"]');
-            if (form && form.__x) {
-                form.__x.$data[field === 'origin' ? 'origin' : 'destination'] = city.name;
-                form.__x.$data.resetRate();
-            }
+            // Dispatch custom event so bookingForm can listen
+            window.dispatchEvent(new CustomEvent('city-selected', {
+                detail: { field: field, value: city.name }
+            }));
         }
     }
 }
@@ -463,6 +461,18 @@ function bookingForm() {
         rateError: null,
         isCalculating: false,
         isSubmitting: false,
+
+        init() {
+            // Listen for city-selected events and sync into this scope
+            window.addEventListener('city-selected', (e) => {
+                if (e.detail.field === 'origin') {
+                    this.origin = e.detail.value;
+                } else if (e.detail.field === 'destination') {
+                    this.destination = e.detail.value;
+                }
+                this.resetRate();
+            });
+        },
 
         addItem() {
             this.items.push({ name: '', quantity: 1, weight: '' });

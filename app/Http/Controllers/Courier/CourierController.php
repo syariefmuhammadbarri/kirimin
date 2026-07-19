@@ -19,8 +19,19 @@ class CourierController extends Controller
     {
         $courier = Auth::user();
         
+        // Ambil shipment milik kurir ini dari tabel pivot courier_assignments
+        // (lebih reliabel karena assignment adalah source of truth)
+        $assignedShipmentIds = CourierAssignment::where('courier_id', $courier->id)
+            ->whereIn('status', ['pending', 'assigned', 'completed'])
+            ->pluck('shipment_id')
+            ->toArray();
+        
         $query = Shipment::with(['customer', 'payment'])
-            ->where('courier_id', $courier->id);
+            ->where(function ($q) use ($courier, $assignedShipmentIds) {
+                // Prioritaskan dari pivot courier_assignments, fallback ke courier_id langsung
+                $q->whereIn('id', $assignedShipmentIds)
+                  ->orWhere('courier_id', $courier->id);
+            });
 
         $allShipments = (clone $query)->get();
 
@@ -211,7 +222,7 @@ class CourierController extends Controller
                 }
             }
 
-            // Create Delivery Proof
+            // Create Delivery Proof with pending admin status
             DeliveryProof::create([
                 'shipment_id' => $shipment->id,
                 'courier_id' => $courier->id,
@@ -219,11 +230,12 @@ class CourierController extends Controller
                 'notes' => $request->notes,
                 'recipient_name' => $request->recipient_name,
                 'recipient_signature' => $request->recipient_signature,
+                'admin_status' => 'pending', // Menunggu persetujuan admin cabang
             ]);
 
-            // Update shipment
+            // Update shipment status ke "delivery_confirmation_pending"
             $shipment->update([
-                'status' => 'delivered'
+                'status' => 'delivery_confirmation_pending'
             ]);
 
             // Mark delivery assignment as completed
@@ -236,16 +248,16 @@ class CourierController extends Controller
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $shipment->destination_city,
-                'description' => "Paket berhasil diterima oleh {$request->recipient_name}. Penerima menandatangani bukti penyerahan.",
-                'status' => 'delivered',
+                'description' => "Kurir mengkonfirmasi paket telah sampai ke {$request->recipient_name}. Menunggu verifikasi admin cabang.",
+                'status' => 'delivery_confirmation_pending',
                 'tracked_at' => now(),
             ]);
 
             // Notify customer
-            $shipment->notifyStatusChange('delivered', "Paket berhasil diterima oleh {$request->recipient_name}. Terima kasih telah menggunakan BAZMA Express.", $shipment->destination_city);
+            $shipment->notifyStatusChange('delivery_confirmation_pending', "Paket telah sampai ke {$request->recipient_name}. Menunggu verifikasi admin cabang.", $shipment->destination_city);
         });
 
-        return redirect()->route('courier.dashboard')->with('success', 'Paket berhasil ditandai sebagai Terkirim.');
+        return redirect()->route('courier.dashboard')->with('success', 'Konfirmasi pengiriman telah dikirim. Menunggu persetujuan admin cabang.');
     }
 
     public function failDelivery(Request $request, Shipment $shipment)

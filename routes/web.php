@@ -103,6 +103,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/assign-pickup-courier/{shipment}', [BranchAdminController::class, 'assignPickupCourier'])->name('assign-pickup-courier');
         Route::get('/receipt/{shipment}', [BranchAdminController::class, 'printReceipt'])->name('receipt');
         Route::get('/assignments', [BranchAdminController::class, 'viewAssignments'])->name('assignments');
+        Route::get('/delivery-confirmations', [BranchAdminController::class, 'deliveryConfirmations'])->name('delivery-confirmations');
+        Route::post('/delivery-confirmations/{deliveryProof}/accept', [BranchAdminController::class, 'acceptDelivery'])->name('delivery-confirmations.accept');
+        Route::post('/delivery-confirmations/{deliveryProof}/reject', [BranchAdminController::class, 'rejectDelivery'])->name('delivery-confirmations.reject');
         Route::get('/reports', [BranchAdminController::class, 'downloadBranchReport'])->name('reports');
         Route::post('/send-transit/{shipment}', [BranchAdminController::class, 'sendTransit'])->name('send-transit');
         Route::post('/receive-transit/{shipment}', [BranchAdminController::class, 'receiveTransit'])->name('receive-transit');

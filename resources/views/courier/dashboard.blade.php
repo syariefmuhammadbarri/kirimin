@@ -56,7 +56,7 @@
     @php
     $pickupShipments   = $shipments->whereIn('status', ['pickup_assigned', 'picked_up_from_customer']);
     $activeShipments   = $shipments->whereIn('status', ['assigned_to_courier', 'picked_up', 'out_for_delivery']);
-    $doneShipments     = $shipments->whereIn('status', ['delivered', 'gagal_kirim']);
+    $doneShipments     = $shipments->whereIn('status', ['delivered', 'gagal_kirim', 'delivery_confirmation_pending']);
     @endphp
 
     {{-- ===== PICKUP TASKS ===== --}}

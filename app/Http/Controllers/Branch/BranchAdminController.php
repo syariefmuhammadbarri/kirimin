@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Branch;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CourierAssignment;
+use App\Models\DeliveryProof;
 use App\Models\Payment;
 use App\Models\Shipment;
 use App\Models\ShipmentTracking;
@@ -275,11 +276,26 @@ class BranchAdminController extends Controller
             return back()->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
         }
 
-        DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch) {
+        // Validasi status berdasarkan fulfillment_type
+        $isPickup = $shipment->fulfillment_type === 'pickup';
+        if ($isPickup && $shipment->status !== 'pickup_scheduled') {
+            return back()->with('error', 'Paket pickup tidak dalam status menunggu penugasan kurir jemput.');
+        }
+        if (!$isPickup && $shipment->status !== 'received_at_branch') {
+            return back()->with('error', 'Paket dropoff harus sudah diterima di cabang (received_at_branch) sebelum ditugaskan ke kurir.');
+        }
+
+        DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch, $isPickup) {
+            $newStatus = $isPickup ? 'pickup_assigned' : 'assigned_to_courier';
+            $assignmentType = $isPickup ? 'pickup' : 'delivery';
+            $description = $isPickup
+                ? "Kurir {$courier->name} ditugaskan untuk menjemput paket di alamat pengirim."
+                : "Paket ditugaskan ke Kurir {$courier->name} untuk pengantaran. " . ($request->notes ? "Catatan: {$request->notes}" : '');
+
             // Update shipment
             $shipment->update([
                 'courier_id' => $courier->id,
-                'status' => 'assigned_to_courier'
+                'status' => $newStatus,
             ]);
 
             // Create assignment record
@@ -289,6 +305,7 @@ class BranchAdminController extends Controller
                 'assigned_by' => $admin->id,
                 'assigned_at' => now(),
                 'status' => 'assigned',
+                'type' => $assignmentType,
                 'notes' => $request->notes,
             ]);
 
@@ -296,8 +313,8 @@ class BranchAdminController extends Controller
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => "Paket ditugaskan ke Kurir {$courier->name} untuk pengantaran. " . ($request->notes ? "Catatan: {$request->notes}" : ''),
-                'status' => 'assigned_to_courier',
+                'description' => $description,
+                'status' => $newStatus,
                 'tracked_at' => now(),
             ]);
         });
@@ -316,16 +333,29 @@ class BranchAdminController extends Controller
 
         $branch = Branch::findOrFail($branchId);
 
+        // Ambil shipment yang VALID untuk ditugaskan ke kurir:
+        // Tipe PICKUP yang baru di-booking ATAU Tipe DROPOFF yang sudah lunas/ada di cabang (received_at_branch)
+        $shipments = Shipment::with(['customer', 'payment'])
+            ->where('branch_id', $branchId)
+            ->where(function($query) {
+                $query->where('fulfillment_type', 'pickup')->where('status', 'pickup_scheduled')
+                      ->orWhere('fulfillment_type', 'dropoff')->where('status', 'received_at_branch');
+            })
+            ->get();
+
+        // Terapkan Aturan BR-10: Hanya ambil kurir aktif dari cabang yang sama dengan Admin
+        $availableCouriers = User::role('kurir')
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->get();
+
+        // Existing assignments history
         $assignments = CourierAssignment::with(['shipment', 'courier', 'assignor'])
             ->whereHas('shipment', function ($query) use ($branchId, $branch) {
                 $query->where('branch_id', $branchId)
                       ->orWhere('origin_city', $branch->city);
             })
             ->latest()
-            ->get();
-
-        $couriers = User::role('kurir')
-            ->where('branch_id', $branchId)
             ->get();
 
         $stats = [
@@ -335,7 +365,7 @@ class BranchAdminController extends Controller
             'cancelled' => $assignments->where('status', 'cancelled')->count(),
         ];
 
-        return view('branch.assignments', compact('assignments', 'couriers', 'stats', 'branch'));
+        return view('branch.assignments', compact('shipments', 'availableCouriers', 'assignments', 'stats', 'branch'));
     }
 
     public function printReceipt(Shipment $shipment)
@@ -520,5 +550,124 @@ class BranchAdminController extends Controller
         });
 
         return redirect()->route('branch.shipment.process', $shipment)->with('success', "Kurir {$courier->name} ditugaskan untuk menjemput paket.");
+    }
+
+    // =====================================================
+    // DELIVERY CONFIRMATION — Accept / Reject by Admin
+    // =====================================================
+
+    /**
+     * Menampilkan daftar konfirmasi pengiriman yang menunggu persetujuan admin.
+     */
+    public function deliveryConfirmations()
+    {
+        $admin = Auth::user();
+        $branch = Branch::findOrFail($admin->branch_id);
+
+        $pendingConfirmations = DeliveryProof::with(['shipment', 'courier'])
+            ->where('admin_status', 'pending')
+            ->whereHas('shipment', function ($query) use ($branch) {
+                $query->where('branch_id', $branch->id);
+            })
+            ->latest()
+            ->get();
+
+        $acceptedConfirmations = DeliveryProof::with(['shipment', 'courier'])
+            ->where('admin_status', 'accepted')
+            ->whereHas('shipment', function ($query) use ($branch) {
+                $query->where('branch_id', $branch->id);
+            })
+            ->latest()
+            ->get();
+
+        return view('branch.delivery_confirmations', compact('pendingConfirmations', 'acceptedConfirmations', 'branch'));
+    }
+
+    /**
+     * Accept delivery confirmation — ubah status shipment menjadi "delivered"
+     */
+    public function acceptDelivery(Request $request, DeliveryProof $deliveryProof)
+    {
+        $admin = Auth::user();
+
+        if ($deliveryProof->admin_status !== 'pending') {
+            return back()->with('error', 'Konfirmasi ini sudah diproses sebelumnya.');
+        }
+
+        $shipment = $deliveryProof->shipment;
+        if (!$shipment) {
+            abort(404);
+        }
+
+        DB::transaction(function () use ($deliveryProof, $shipment, $admin) {
+            $deliveryProof->update([
+                'admin_status' => 'accepted',
+                'reviewed_by'  => $admin->id,
+                'reviewed_at'  => now(),
+            ]);
+
+            $shipment->update(['status' => 'delivered']);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location'    => $shipment->destination_city,
+                'description' => "Admin cabang menyetujui konfirmasi pengiriman. Paket resmi terkirim ke {$deliveryProof->recipient_name}.",
+                'status'      => 'delivered',
+                'tracked_at'  => now(),
+            ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('delivered', "Paket berhasil terkirim ke {$deliveryProof->recipient_name}. Terima kasih telah menggunakan Kirimin.", $shipment->destination_city);
+        });
+
+        return redirect()->route('branch.delivery-confirmations')->with('success', 'Konfirmasi pengiriman diterima. Status paket berubah menjadi "Terkirim".');
+    }
+
+    /**
+     * Reject delivery confirmation — kembalikan status ke out_for_delivery untuk perbaikan kurir
+     */
+    public function rejectDelivery(Request $request, DeliveryProof $deliveryProof)
+    {
+        $admin = Auth::user();
+
+        $request->validate([
+            'reject_reason' => 'required|string|max:500',
+        ]);
+
+        if ($deliveryProof->admin_status !== 'pending') {
+            return back()->with('error', 'Konfirmasi ini sudah diproses sebelumnya.');
+        }
+
+        $shipment = $deliveryProof->shipment;
+        if (!$shipment) {
+            abort(404);
+        }
+
+        DB::transaction(function () use ($request, $deliveryProof, $shipment, $admin) {
+            $deliveryProof->update([
+                'admin_status' => 'rejected',
+                'admin_notes'  => $request->reject_reason,
+                'reviewed_by'  => $admin->id,
+                'reviewed_at'  => now(),
+            ]);
+
+            $shipment->update([
+                'status' => 'out_for_delivery',
+                'courier_id' => $deliveryProof->courier_id,
+            ]);
+
+            ShipmentTracking::create([
+                'shipment_id' => $shipment->id,
+                'location'    => $shipment->destination_city,
+                'description' => "Admin cabang menolak konfirmasi pengiriman. Alasan: {$request->reject_reason}. Kurir diminta memperbaiki konfirmasi.",
+                'status'      => 'out_for_delivery',
+                'tracked_at'  => now(),
+            ]);
+
+            // Notify customer
+            $shipment->notifyStatusChange('out_for_delivery', "Konfirmasi pengiriman ditolak admin. Alasan: {$request->reject_reason}. Kurir akan memperbaiki.", $shipment->destination_city);
+        });
+
+        return redirect()->route('branch.delivery-confirmations')->with('success', 'Konfirmasi ditolak. Paket dikembalikan ke status pengantaran.');
     }
 }

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['shipment_id', 'courier_id', 'photos', 'notes', 'recipient_name', 'recipient_signature'])]
+#[Fillable(['shipment_id', 'courier_id', 'photos', 'notes', 'recipient_name', 'recipient_signature', 'admin_status', 'admin_notes', 'reviewed_by', 'reviewed_at'])]
 class DeliveryProof extends Model
 {
     use HasFactory;

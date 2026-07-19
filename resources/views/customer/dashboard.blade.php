@@ -196,21 +196,27 @@
             <p id="modal-tracking" class="text-sm text-slate-600 mb-6 font-mono"></p>
 
             <div class="space-y-3 mb-6">
-                <p class="text-sm text-slate-700">Pilih metode simulasi pembayaran:</p>
-                <div class="glass-panel rounded-lg border border-slate-200 p-4 text-center bg-slate-50">
-                    <p class="text-xs text-slate-600 mb-1">Midtrans Payment Gateway</p>
-                    <p class="text-sm text-slate-700">Di produksi nyata, widget Midtrans Snap akan tampil di sini.</p>
+                <p class="text-sm text-slate-700">Pilih metode pembayaran:</p>
+                <!-- Snap embed - akan tampil saat Snap siap -->
+                <div id="snap-container" class="w-full min-h-[100px]"></div>
+
+                <!-- Fallback mock mode -->
+                <div id="mock-container" class="w-full">
+                    <div class="glass-panel rounded-lg border border-slate-200 p-4 text-center bg-slate-50">
+                        <p class="text-xs text-slate-600 mb-1">Midtrans Payment Gateway</p>
+                        <p class="text-sm text-slate-700">Klik tombol di bawah untuk simulasi pembayaran.</p>
+                    </div>
+                    <form id="mock-payment-form" method="POST" action="" class="mt-3">
+                        @csrf
+                        <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition">
+                            Simulasi Pembayaran Berhasil (Demo)
+                        </button>
+                    </form>
                 </div>
             </div>
 
-            <form id="mock-payment-form" method="POST" action="">
-                @csrf
-                <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition">
-                    Simulasi Pembayaran Berhasil (Demo)
-                </button>
-            </form>
             <button onclick="closePaymentModal()" class="w-full mt-3 py-2.5 text-sm text-slate-600 hover:text-slate-800 transition">
-                Batal
+                Tutup
             </button>
         </div>
     </div>
@@ -259,15 +265,80 @@
 @endsection
 
 @section('scripts')
+@php
+$midtransClientKey = config('services.midtrans.client_key');
+$midtransMockMode = config('services.midtrans.mock_mode', true);
+@endphp
 <script>
+// ====== Midtrans Snap Integration ======
+const MIDTRANS_CLIENT_KEY = '{{ $midtransClientKey }}';
+const IS_MOCK_MODE = {{ $midtransMockMode ? 'true' : 'false' }};
+
+// Load Snap script hanya jika real mode dan client_key tersedia
+if (!IS_MOCK_MODE && MIDTRANS_CLIENT_KEY && MIDTRANS_CLIENT_KEY !== 'SB-Mid-client-your_client_key_here') {
+    const snapScript = document.createElement('script');
+    snapScript.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
+    snapScript.setAttribute('data-client-key', MIDTRANS_CLIENT_KEY);
+    document.head.appendChild(snapScript);
+}
+
 function openPaymentModal(shipmentId, trackingNumber) {
     document.getElementById('modal-tracking').textContent = 'Resi: ' + trackingNumber;
     document.getElementById('mock-payment-form').action = '/customer/payment/mock-settle/' + shipmentId;
-    document.getElementById('payment-modal').classList.remove('hidden');
+
+    if (!IS_MOCK_MODE && MIDTRANS_CLIENT_KEY && MIDTRANS_CLIENT_KEY !== 'SB-Mid-client-your_client_key_here') {
+        // === REAL MIDTRANS SNAP MODE ===
+        document.getElementById('mock-container').style.display = 'none';
+        document.getElementById('snap-container').innerHTML = '<div class="text-center py-8"><div class="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-3"></div><p class="text-sm text-slate-600">Memuat pembayaran...</p></div>';
+        document.getElementById('payment-modal').classList.remove('hidden');
+
+        // Fetch snap token via AJAX
+        fetch('/customer/payment/' + shipmentId)
+            .then(res => res.json())
+            .then(data => {
+                if (data.snap_token && data.snap_token !== '' && !data.snap_token.startsWith('mock_')) {
+                    window.snapEmbed(data.snap_token, 'snap-container', {
+                        onSuccess: function(result) {
+                            document.getElementById('snap-container').innerHTML =
+                                '<div class="text-center py-6 text-emerald-600"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><p class="font-semibold">Pembayaran Berhasil!</p><p class="text-xs text-slate-500 mt-1">Silakan tutup dan refresh halaman.</p></div>';
+                            setTimeout(() => location.reload(), 2000);
+                        },
+                        onPending: function(result) {
+                            document.getElementById('snap-container').innerHTML =
+                                '<div class="text-center py-6 text-amber-600"><p class="font-semibold">Menunggu Pembayaran</p><p class="text-xs text-slate-500 mt-1">Selesaikan pembayaran Anda di halaman Midtrans.</p></div>';
+                        },
+                        onError: function(result) {
+                            document.getElementById('snap-container').innerHTML =
+                                '<div class="text-center py-6 text-red-600"><p class="font-semibold">Gagal Memproses</p><p class="text-xs text-slate-500 mt-1">Silakan coba lagi.</p></div>';
+                        },
+                        onClose: function() {
+                            document.getElementById('snap-container').innerHTML = '';
+                        }
+                    });
+                } else {
+                    // Token mock → fallback ke mock container
+                    document.getElementById('mock-container').style.display = 'block';
+                    document.getElementById('snap-container').innerHTML = '';
+                }
+            })
+            .catch(() => {
+                document.getElementById('mock-container').style.display = 'block';
+                document.getElementById('snap-container').innerHTML = '';
+            });
+    } else {
+        // === MOCK MODE ===
+        document.getElementById('mock-container').style.display = 'block';
+        document.getElementById('snap-container').innerHTML = '';
+        document.getElementById('payment-modal').classList.remove('hidden');
+    }
 }
+
 function closePaymentModal() {
     document.getElementById('payment-modal').classList.add('hidden');
+    document.getElementById('snap-container').innerHTML = '';
+    document.getElementById('mock-container').style.display = 'block';
 }
+
 function openCancelModal(shipmentId, bookingCode) {
     document.getElementById('cancel-booking-code').textContent = 'Booking: ' + bookingCode;
     document.getElementById('cancel-form').action = '/customer/shipment/' + shipmentId + '/cancel';
