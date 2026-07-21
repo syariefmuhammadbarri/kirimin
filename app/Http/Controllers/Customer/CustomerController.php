@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\LandingContent;
 use App\Models\Payment;
@@ -133,6 +134,16 @@ class CustomerController extends Controller
         return response()->json($calc);
     }
 
+    /**
+     * Helper: resolve branch_id from origin_city.
+     * FR-U1/BR-18: branch_id wajib terisi saat booking, bukan ditunda.
+     */
+    private function resolveBranchForCity(string $city): ?int
+    {
+        $branch = Branch::whereRaw('LOWER(city) = ?', [trim(strtolower($city))])->first();
+        return $branch?->id;
+    }
+
     public function createBooking(Request $request)
     {
         $request->validate([
@@ -156,6 +167,12 @@ class CustomerController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.weight' => 'required|numeric|min:0.1',
         ]);
+
+        // FR-U2: Validasi cabang melayani origin_city
+        $branchId = $this->resolveBranchForCity($request->origin_city);
+        if (!$branchId) {
+            return redirect()->back()->withInput()->with('error', 'Maaf, kota asal "' . $request->origin_city . '" belum memiliki cabang kami. Silakan pilih kota lain.');
+        }
 
         $user = Auth::user();
         $customer = Customer::where('user_id', $user->id)->first();
@@ -184,17 +201,18 @@ class CustomerController extends Controller
         );
 
         // Run in Transaction to avoid double bookings or partial rows
-        return DB::transaction(function () use ($request, $customer, $estimatedWeight, $rateDetails) {
+        return DB::transaction(function () use ($request, $customer, $estimatedWeight, $rateDetails, $branchId) {
             $today = now()->format('Ymd');
             $randomStr = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 5));
             $trackingNumber = 'EXP-' . $today . '-' . $randomStr;
             $bookingCode = 'BK-' . $today . '-' . $randomStr;
 
-            // 1. Create Shipment
+            // 1. Create Shipment — branch_id langsung diisi (BR-18)
             $shipment = Shipment::create([
                 'tracking_number' => $trackingNumber,
                 'booking_code' => $bookingCode,
                 'customer_id' => $customer->id,
+                'branch_id' => $branchId,
                 'status' => 'booking_created',
                 'origin_city' => $request->origin_city,
                 'destination_city' => $request->destination_city,

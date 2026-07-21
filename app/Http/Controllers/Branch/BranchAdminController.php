@@ -107,9 +107,19 @@ class BranchAdminController extends Controller
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
 
-        // Validate branch assignment (origin city should match admin's branch city, or update branch_id)
+        // FR-U4/BR-21: Guard validasi kota asal — paket hanya bisa "diserap" cabang yang kotanya cocok
         if (empty($shipment->branch_id)) {
+            if (strtolower(trim($shipment->origin_city)) !== strtolower(trim($branch->city))) {
+                return redirect()->route('branch.dashboard')
+                    ->with('error', 'Paket dengan kota asal "' . $shipment->origin_city . '" tidak dapat diproses di cabang ' . $branch->name . ' (' . $branch->city . ').');
+            }
             $shipment->update(['branch_id' => $admin->branch_id]);
+        } elseif ($shipment->branch_id !== $branch->id) {
+            // Jika sudah punya branch_id tapi bukan cabang admin ini, tolak
+            $assignedBranch = Branch::find($shipment->branch_id);
+            $branchName = $assignedBranch ? $assignedBranch->name : 'cabang lain';
+            return redirect()->route('branch.dashboard')
+                ->with('error', 'Paket ini sudah terdaftar di ' . $branchName . '. Tidak bisa diproses di cabang Anda.');
         }
 
         $shipment->load(['customer', 'items', 'payment']);
@@ -195,7 +205,7 @@ class BranchAdminController extends Controller
     {
         // FR-02: Pickup wajib bayar online — cash hanya untuk dropoff
         if ($shipment->fulfillment_type === 'pickup') {
-            return back()->with('error', 'Paket dengan layanan jemput (pickup) tidak dapat dibayar tunai di outlet.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket dengan layanan jemput (pickup) tidak dapat dibayar tunai di outlet.');
         }
 
         // FR-03: Wajib input nominal uang diterima
@@ -213,7 +223,7 @@ class BranchAdminController extends Controller
 
         // Validasi nominal tidak boleh kurang dari tagihan
         if ((float) $request->paid_amount < (float) $shipment->total_price) {
-            return back()->with('error', 'Nominal yang diterima (Rp ' . number_format($request->paid_amount, 0, ',', '.') . ') kurang dari tagihan (Rp ' . number_format($shipment->total_price, 0, ',', '.') . ').');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Nominal yang diterima (Rp ' . number_format($request->paid_amount, 0, ',', '.') . ') kurang dari tagihan (Rp ' . number_format($shipment->total_price, 0, ',', '.') . ').');
         }
 
         DB::transaction(function () use ($request, $shipment, $payment, $branch) {
@@ -255,7 +265,7 @@ class BranchAdminController extends Controller
 
         // FR-05: Validasi kurir harus berasal dari cabang yang sama dengan admin yang meng-assign
         if ($courier->branch_id !== $admin->branch_id) {
-            return back()->with('error', 'Kurir ' . $courier->name . ' tidak terdaftar di cabang ' . $branch->name . '. Pilih kurir dari cabang yang sama.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Kurir ' . $courier->name . ' tidak terdaftar di cabang ' . $branch->name . '. Pilih kurir dari cabang yang sama.');
         }
 
         // Check courier availability: max 5 active assignments
@@ -264,7 +274,7 @@ class BranchAdminController extends Controller
             ->count();
 
         if ($activeCount >= 5) {
-            return back()->with('error', 'Kurir ini sudah memiliki ' . $activeCount . ' tugas aktif. Maksimal 5 tugas per kurir.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Kurir ini sudah memiliki ' . $activeCount . ' tugas aktif. Maksimal 5 tugas per kurir.');
         }
 
         // Check if shipment already has an active assignment
@@ -273,16 +283,16 @@ class BranchAdminController extends Controller
             ->first();
 
         if ($existingAssignment) {
-            return back()->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
         }
 
         // Validasi status berdasarkan fulfillment_type
         $isPickup = $shipment->fulfillment_type === 'pickup';
         if ($isPickup && $shipment->status !== 'pickup_scheduled') {
-            return back()->with('error', 'Paket pickup tidak dalam status menunggu penugasan kurir jemput.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket pickup tidak dalam status menunggu penugasan kurir jemput.');
         }
         if (!$isPickup && $shipment->status !== 'received_at_branch') {
-            return back()->with('error', 'Paket dropoff harus sudah diterima di cabang (received_at_branch) sebelum ditugaskan ke kurir.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket dropoff harus sudah diterima di cabang (received_at_branch) sebelum ditugaskan ke kurir.');
         }
 
         DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch, $isPickup) {
@@ -437,7 +447,7 @@ class BranchAdminController extends Controller
         $nextBranch = Branch::findOrFail($request->next_branch_id);
 
         if (!in_array($shipment->status, ['received_at_branch', 'weighed'])) {
-            return back()->with('error', 'Status paket tidak valid untuk dikirim transit.');
+            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Status paket tidak valid untuk dikirim transit.');
         }
 
         DB::transaction(function () use ($shipment, $branch, $nextBranch) {
@@ -464,7 +474,7 @@ class BranchAdminController extends Controller
         $branch = Branch::findOrFail($admin->branch_id);
 
         if ($shipment->next_branch_id !== $branch->id) {
-            return back()->with('error', 'Paket ini tidak dijadwalkan transit ke cabang Anda.');
+            return redirect()->route('branch.dashboard')->with('error', 'Paket ini tidak dijadwalkan transit ke cabang Anda.');
         }
 
         DB::transaction(function () use ($shipment, $branch) {
