@@ -27,7 +27,7 @@
                     <div class="text-right">
                         <div class="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">Status Paket</div>
                         <span class="inline-block bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold uppercase px-3 py-1 rounded-full">
-                            {{ str_replace('_', ' ', $shipment->status) }}
+                            {{ $shipment->status_label }}
                         </span>
                     </div>
                 </div>

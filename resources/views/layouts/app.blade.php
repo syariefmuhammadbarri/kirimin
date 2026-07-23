@@ -76,6 +76,7 @@
                             <a href="{{ route('customer.profile') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Profil</a>
                         @elseif(Auth::user()->hasRole('admin_cabang'))
                             <a href="{{ route('branch.dashboard') }}" class="text-xs font-medium text-gray-600 hover:text-blue-600 transition">Admin Panel</a>
+                            <a href="{{ route('branch.delivery-confirmations') }}" class="text-xs font-medium text-amber-700 hover:text-amber-900 border border-amber-200 bg-amber-50 px-2.5 py-1 rounded-lg transition">Konfirmasi Delivery</a>
                             {{-- FR-07: Walk-in booking shortcut --}}
                             <a href="{{ route('branch.booking.walkin') }}" class="text-xs font-medium text-emerald-600 hover:text-emerald-800 border border-emerald-200 bg-emerald-50 px-2.5 py-1 rounded-lg transition">Walk-in</a>
                         @elseif(Auth::user()->hasRole('kurir'))

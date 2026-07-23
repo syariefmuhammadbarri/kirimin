@@ -124,18 +124,38 @@
                     <div class="relative">
                         <input type="text" x-ref="originInput" x-model="search" @input="filterCities" @focus="open = true" @click.away="open = false"
                                placeholder="Cari kota asal..."
-                               class="form-input">
+                               class="form-input"
+                               :class="{ 'border-amber-400 focus:ring-amber-400': selectedIsServiced === false }">
                         <input type="hidden" name="origin_city" :value="selected">
                         <div x-show="open && filteredCities.length > 0" 
                              class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg city-search-results">
                             <template x-for="city in filteredCities" :key="city.id">
                                 <div @click="selectCity(city)" 
-                                     class="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer border-b border-slate-100 last:border-b-0 transition">
-                                    <span x-text="city.name"></span>
-                                    <span class="text-xs text-slate-400 ml-2" x-text="city.type + ' - ' + city.province"></span>
+                                     :class="city.is_serviced ? 'hover:bg-blue-50 hover:text-blue-700 text-slate-700' : 'hover:bg-amber-50 text-slate-400'"
+                                     class="px-4 py-2.5 text-sm cursor-pointer border-b border-slate-100 last:border-b-0 transition flex items-center justify-between gap-2">
+                                    <span>
+                                        <span x-text="city.name"></span>
+                                        <span class="text-xs text-slate-400 ml-2" x-text="city.type + ' - ' + city.province"></span>
+                                    </span>
+                                    <span x-show="!city.is_serviced"
+                                          class="flex-shrink-0 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300 rounded px-1.5 py-0.5 leading-tight">
+                                        Belum tersedia
+                                    </span>
                                 </div>
                             </template>
                         </div>
+                    </div>
+                    {{-- Warning inline jika kota asal tidak punya cabang --}}
+                    <div x-show="selectedIsServiced === false" x-transition
+                         class="mt-2 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <svg class="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <p class="text-xs text-amber-700">
+                            <strong>Wilayah/Provinsi ini belum memiliki cabang Kirimin.</strong>
+                            Booking akan ditolak saat disubmit. Silakan pilih kota asal di provinsi yang memiliki cabang aktif
+                            (Jakarta, Bandung, Surabaya, Medan, Semarang, Yogyakarta, Makassar, atau Palembang).
+                        </p>
                     </div>
                     @error('origin_city')<p class="form-error">{{ $message }}</p>@enderror
                 </div>
@@ -423,11 +443,14 @@
 @section('scripts')
 <script>
 function citySelect(field, initialValue) {
+    const citiesList = @json($cities ?? []);
+    const initialCity = initialValue ? citiesList.find(c => c.name.toLowerCase() === initialValue.toLowerCase()) : null;
     return {
         search: initialValue || '',
         selected: initialValue || '',
+        selectedIsServiced: initialCity ? initialCity.is_serviced : null,
         open: false,
-        cities: @json($cities ?? []),
+        cities: citiesList,
         get filteredCities() {
             if (!this.search) return this.cities;
             const q = this.search.toLowerCase();
@@ -435,11 +458,17 @@ function citySelect(field, initialValue) {
         },
         filterCities() {
             this.open = true;
+            // Reset serviced status saat user mengetik ulang
+            if (this.search !== this.selected) {
+                this.selectedIsServiced = null;
+            }
         },
         selectCity(city) {
             this.selected = city.name;
             this.search = city.name;
             this.open = false;
+            // Simpan status layanan kota yang dipilih (hanya relevan untuk origin)
+            this.selectedIsServiced = city.is_serviced;
             // Dispatch custom event so bookingForm can listen
             window.dispatchEvent(new CustomEvent('city-selected', {
                 detail: { field: field, value: city.name }

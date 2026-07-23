@@ -27,9 +27,26 @@ class ShipmentCancelController extends Controller
             abort(403, 'Akses ditolak.');
         }
 
-        // Validasi eligibilitas pembatalan
+        // Sync payment status with Midtrans API first to get real-time status
+        if ($shipment->payment && $shipment->payment->payment_status !== 'paid') {
+            app(\App\Services\MidtransService::class)->syncPaymentStatus($shipment);
+            $shipment->refresh();
+        }
+
+        // Diagnostic validation checks
+        if ($shipment->payment && $shipment->payment->payment_status === 'paid') {
+            return redirect()->route('customer.dashboard')
+                ->with('error', 'Pembayaran untuk resi ' . $shipment->tracking_number . ' telah terverifikasi LUNAS di Midtrans. Paket yang sudah dibayar tidak dapat dibatalkan.');
+        }
+
+        if ($shipment->status === 'cancelled') {
+            return redirect()->route('customer.dashboard')
+                ->with('error', 'Booking resi ' . $shipment->tracking_number . ' sudah dibatalkan sebelumnya.');
+        }
+
         if (!$shipment->isCancellable()) {
-            return back()->with('error', 'Paket ini tidak dapat dibatalkan. Hanya paket yang belum dibayar dan belum diproses yang bisa dibatalkan.');
+            return redirect()->route('customer.dashboard')
+                ->with('error', 'Paket tidak dapat dibatalkan karena sedang dalam proses fisik oleh cabang/kurir (Status: ' . str_replace('_', ' ', strtoupper($shipment->status)) . ').');
         }
 
         $request->validate([

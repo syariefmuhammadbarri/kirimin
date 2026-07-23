@@ -135,7 +135,7 @@
                         <td class="p-4 font-mono text-xs text-blue-600">{{ $proof->shipment->tracking_number }}</td>
                         <td class="p-4 text-slate-700">{{ $proof->recipient_name }}</td>
                         <td class="p-4 text-slate-600">{{ $proof->courier->name }}</td>
-                        <td class="p-4 text-slate-600">{{ $proof->reviewed_at ? $proof->reviewed_at->format('d M Y H:i') : '-' }}</td>
+                        <td class="p-4 text-slate-600">{{ $proof->reviewed_at ? \Carbon\Carbon::parse($proof->reviewed_at)->format('d M Y H:i') : '-' }}</td>
                         <td class="p-4"><span class="status-badge status-accepted">Accepted</span></td>
                     </tr>
                     @endforeach
@@ -185,14 +185,16 @@
 <script>
 function openAcceptModal(id, resi) {
     document.getElementById('acceptResi').textContent = resi;
-    document.getElementById('acceptForm').action = '{{ route("branch.delivery-confirmations.accept", "") }}/' + id;
+    let url = '{{ route("branch.delivery-confirmations.accept", ":id") }}';
+    document.getElementById('acceptForm').action = url.replace(':id', id);
     document.getElementById('acceptModal').classList.add('active');
 }
 function closeAcceptModal() { document.getElementById('acceptModal').classList.remove('active'); }
 
 function openRejectModal(id, resi) {
     document.getElementById('rejectResi').textContent = resi;
-    document.getElementById('rejectForm').action = '{{ route("branch.delivery-confirmations.reject", "") }}/' + id;
+    let url = '{{ route("branch.delivery-confirmations.reject", ":id") }}';
+    document.getElementById('rejectForm').action = url.replace(':id', id);
     document.getElementById('rejectModal').classList.add('active');
 }
 function closeRejectModal() { document.getElementById('rejectModal').classList.remove('active'); }

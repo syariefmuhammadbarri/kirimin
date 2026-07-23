@@ -106,4 +106,32 @@ class Shipment extends Model
         $paymentNotPaid = !$this->payment || $this->payment->payment_status !== 'paid';
         return in_array($this->status, $cancellableStatuses) && $paymentNotPaid;
     }
+
+    /**
+     * Label status bahasa Indonesia ramah pengguna.
+     */
+    public function getStatusLabelAttribute(): string
+    {
+        $map = [
+            'booking_created'               => 'Booking Dibuat',
+            'waiting_dropoff'               => 'Menunggu Drop-Off',
+            'pickup_scheduled'              => 'Penjemputan Dijadwalkan',
+            'pickup_assigned'               => 'Kurir Menjemput Paket',
+            'picked_up_from_customer'       => 'Paket Terjemput',
+            'weighed'                       => 'Sudah Ditimbang',
+            'payment_pending'               => 'Menunggu Pembayaran',
+            'received_at_branch'            => 'Diterima di Gudang Cabang',
+            'in_transit'                    => 'Dalam Pengiriman (Transit)',
+            'assigned_to_courier'           => 'Tugaskan Kurir Antar',
+            'picked_up'                     => 'Dibawa Kurir',
+            'out_for_delivery'              => 'Sedang Diantar Kurir',
+            'delivery_confirmation_pending' => 'Menunggu Verifikasi Admin',
+            'delivered'                     => 'Selesai (Sudah Diterima)',
+            'gagal_kirim'                   => 'Gagal Dikirim',
+            'cancelled'                     => 'Dibatalkan',
+            'returned'                      => 'Dikembalikan',
+        ];
+
+        return $map[$this->status] ?? str_replace('_', ' ', $this->status);
+    }
 }

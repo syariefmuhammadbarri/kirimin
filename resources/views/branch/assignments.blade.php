@@ -324,7 +324,8 @@ function openAssignModal(shipmentId, trackingNumber, fulfillmentType, receiverNa
         (isPickup ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200');
 
     // Set form action
-    document.getElementById('assignForm').action = '{{ route("branch.assign-courier", "") }}/' + shipmentId;
+    let assignUrl = '{{ route("branch.assign-courier", ":id") }}';
+    document.getElementById('assignForm').action = assignUrl.replace(':id', shipmentId);
 
     // Show modal
     document.getElementById('assignModal').classList.add('active');

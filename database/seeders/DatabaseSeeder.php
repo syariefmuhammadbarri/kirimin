@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Branch;
+use App\Models\BranchRoute;
 use App\Models\Customer;
 use App\Models\LandingContent;
 use App\Models\Rate;
@@ -21,6 +22,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // 0. Seed Cities first — required by showBooking() dropdown
+        $this->call(CitiesSeeder::class);
+
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
@@ -31,34 +35,30 @@ class DatabaseSeeder extends Seeder
         $managerRole = Role::create(['name' => 'manager']);
         $ownerRole = Role::create(['name' => 'owner']);
 
-        // 2. Create Branches
-        $branchJkt = Branch::create([
-            'name' => 'Cabang Jakarta Pusat',
-            'city' => 'Jakarta',
-            'address' => 'Jl. Kebon Sirih No. 1, Jakarta Pusat',
-            'phone' => '021-111111'
-        ]);
+        // 2. Create 8 Hub Branches
+        $branchDefs = [
+            ['key' => 'Jakarta', 'name' => 'Cabang Jakarta Pusat', 'city' => 'Jakarta', 'address' => 'Jl. Kebon Sirih No. 1, Jakarta Pusat', 'phone' => '021-111111'],
+            ['key' => 'Bandung', 'name' => 'Cabang Bandung Wetan', 'city' => 'Bandung', 'address' => 'Jl. Riau No. 10, Bandung Wetan', 'phone' => '022-222222'],
+            ['key' => 'Surabaya', 'name' => 'Cabang Surabaya Gubeng', 'city' => 'Surabaya', 'address' => 'Jl. Kertajaya No. 15, Surabaya', 'phone' => '031-333333'],
+            ['key' => 'Medan', 'name' => 'Cabang Medan Baru', 'city' => 'Medan', 'address' => 'Jl. S. Parman No. 20, Medan', 'phone' => '061-444444'],
+            ['key' => 'Semarang', 'name' => 'Cabang Semarang Hub', 'city' => 'Semarang', 'address' => 'Jl. Pemuda No. 88, Semarang', 'phone' => '024-555555'],
+            ['key' => 'Yogyakarta', 'name' => 'Cabang Yogyakarta Hub', 'city' => 'Yogyakarta', 'address' => 'Jl. Malioboro No. 45, Yogyakarta', 'phone' => '0274-666666'],
+            ['key' => 'Makassar', 'name' => 'Cabang Makassar Hub', 'city' => 'Makassar', 'address' => 'Jl. Ujung Pandang No. 12, Makassar', 'phone' => '0411-777777'],
+            ['key' => 'Palembang', 'name' => 'Cabang Palembang Hub', 'city' => 'Palembang', 'address' => 'Jl. Sudirman No. 100, Palembang', 'phone' => '0711-888888'],
+        ];
 
-        $branchBdg = Branch::create([
-            'name' => 'Cabang Bandung Wetan',
-            'city' => 'Bandung',
-            'address' => 'Jl. Riau No. 10, Bandung Wetan',
-            'phone' => '022-222222'
-        ]);
+        $branches = [];
+        foreach ($branchDefs as $b) {
+            $branches[$b['key']] = Branch::create([
+                'name' => $b['name'],
+                'city' => $b['city'],
+                'address' => $b['address'],
+                'phone' => $b['phone'],
+            ]);
+        }
 
-        $branchSby = Branch::create([
-            'name' => 'Cabang Surabaya Gubeng',
-            'city' => 'Surabaya',
-            'address' => 'Jl. Kertajaya No. 15, Surabaya',
-            'phone' => '031-333333'
-        ]);
-
-        $branchMdn = Branch::create([
-            'name' => 'Cabang Medan Baru',
-            'city' => 'Medan',
-            'address' => 'Jl. S. Parman No. 20, Medan',
-            'phone' => '061-444444'
-        ]);
+        $branchJkt = $branches['Jakarta'];
+        $branchBdg = $branches['Bandung'];
 
         // 3. Create Users & Assign Roles
 
@@ -80,45 +80,52 @@ class DatabaseSeeder extends Seeder
         ]);
         $owner->assignRole($ownerRole);
 
-        // Admin Jakarta
-        $adminJkt = User::create([
-            'name' => 'Admin Jakarta',
-            'email' => 'admin.jakarta@ekspedisi.com',
-            'password' => Hash::make('password'),
-            'branch_id' => $branchJkt->id,
-            'email_verified_at' => now(),
-        ]);
-        $adminJkt->assignRole($adminRole);
+        // Create Admin & 2-3 Couriers per Branch
+        $couriersMap = [];
+        foreach ($branches as $city => $branch) {
+            $slug = strtolower($city);
 
-        // Admin Bandung
-        $adminBdg = User::create([
-            'name' => 'Admin Bandung',
-            'email' => 'admin.bandung@ekspedisi.com',
-            'password' => Hash::make('password'),
-            'branch_id' => $branchBdg->id,
-            'email_verified_at' => now(),
-        ]);
-        $adminBdg->assignRole($adminRole);
+            // Admin Branch
+            $adminUser = User::create([
+                'name' => "Admin {$city}",
+                'email' => "admin.{$slug}@ekspedisi.com",
+                'password' => Hash::make('password'),
+                'branch_id' => $branch->id,
+                'email_verified_at' => now(),
+            ]);
+            $adminUser->assignRole($adminRole);
 
-        // Courier Jakarta
-        $courierJkt = User::create([
-            'name' => 'Kurir Jakarta',
-            'email' => 'courier.jakarta@ekspedisi.com',
-            'password' => Hash::make('password'),
-            'branch_id' => $branchJkt->id,
-            'email_verified_at' => now(),
-        ]);
-        $courierJkt->assignRole($courierRole);
+            // Courier 1 (Keep legacy email format for Jakarta & Bandung)
+            $c1Email = match($city) {
+                'Jakarta' => 'courier.jakarta@ekspedisi.com',
+                'Bandung' => 'courier.bandung@ekspedisi.com',
+                default => "courier.{$slug}.1@ekspedisi.com",
+            };
 
-        // Courier Bandung
-        $courierBdg = User::create([
-            'name' => 'Kurir Bandung',
-            'email' => 'courier.bandung@ekspedisi.com',
-            'password' => Hash::make('password'),
-            'branch_id' => $branchBdg->id,
-            'email_verified_at' => now(),
-        ]);
-        $courierBdg->assignRole($courierRole);
+            $c1 = User::create([
+                'name' => "Kurir {$city} 1",
+                'email' => $c1Email,
+                'password' => Hash::make('password'),
+                'branch_id' => $branch->id,
+                'email_verified_at' => now(),
+            ]);
+            $c1->assignRole($courierRole);
+
+            // Courier 2
+            $c2 = User::create([
+                'name' => "Kurir {$city} 2",
+                'email' => "courier.{$slug}.2@ekspedisi.com",
+                'password' => Hash::make('password'),
+                'branch_id' => $branch->id,
+                'email_verified_at' => now(),
+            ]);
+            $c2->assignRole($courierRole);
+
+            $couriersMap[$city] = [$c1, $c2];
+        }
+
+        $courierJkt = $couriersMap['Jakarta'][0];
+        $courierBdg = $couriersMap['Bandung'][0];
 
         // Customer User & Profile
         $customerUser = User::create([
@@ -136,54 +143,62 @@ class DatabaseSeeder extends Seeder
             'city' => 'Jakarta',
         ]);
 
-        // 4. Create Rates
-        $cities = ['Jakarta', 'Bandung', 'Surabaya', 'Medan'];
-        $ratesMatrix = [
-            'Jakarta' => [
-                'Bandung' => [10000, 2],
-                'Surabaya' => [20000, 3],
-                'Medan' => [35000, 4],
-                'Jakarta' => [6000, 1]
-            ],
-            'Bandung' => [
-                'Jakarta' => [10000, 2],
-                'Surabaya' => [22000, 3],
-                'Medan' => [38000, 4],
-                'Bandung' => [6000, 1]
-            ],
-            'Surabaya' => [
-                'Jakarta' => [20000, 3],
-                'Bandung' => [22000, 3],
-                'Medan' => [45000, 5],
-                'Surabaya' => [6000, 1]
-            ],
-            'Medan' => [
-                'Jakarta' => [35000, 4],
-                'Bandung' => [38000, 4],
-                'Surabaya' => [45000, 5],
-                'Medan' => [6000, 1]
-            ]
+        // 4. Create Inter-Branch Route Graph (8 Hub Nodes, 9 Edges)
+        $routesData = [
+            ['Jakarta', 'Bandung', 150],
+            ['Jakarta', 'Semarang', 450],
+            ['Semarang', 'Yogyakarta', 65],
+            ['Semarang', 'Surabaya', 310],
+            ['Yogyakarta', 'Surabaya', 290],
+            ['Surabaya', 'Makassar', 860],
+            ['Jakarta', 'Palembang', 470],
+            ['Palembang', 'Medan', 1400],
+            ['Bandung', 'Yogyakarta', 315],
         ];
 
-        foreach ($ratesMatrix as $origin => $destinations) {
-            foreach ($destinations as $dest => $data) {
-                Rate::create([
-                    'origin_city' => $origin,
-                    'destination_city' => $dest,
-                    'price_per_kg' => $data[0],
-                    'estimated_days' => $data[1]
+        foreach ($routesData as $r) {
+            $fromB = $branches[$r[0]] ?? null;
+            $toB = $branches[$r[1]] ?? null;
+            if ($fromB && $toB) {
+                BranchRoute::create([
+                    'from_branch_id' => $fromB->id,
+                    'to_branch_id' => $toB->id,
+                    'distance_km' => $r[2],
+                    'is_active' => true,
                 ]);
             }
         }
 
-        // 5. Create Settings
+        // 5. Create Rates Matrix for Hub Cities
+        $cityList = array_keys($branches);
+        foreach ($cityList as $orig) {
+            foreach ($cityList as $dest) {
+                if ($orig === $dest) {
+                    $price = 6000;
+                    $days = 1;
+                } else {
+                    $price = 15000;
+                    $days = 3;
+                }
+                Rate::create([
+                    'origin_city' => $orig,
+                    'destination_city' => $dest,
+                    'price_per_kg' => $price,
+                    'estimated_days' => $days,
+                ]);
+            }
+        }
+
+        // 6. Create Settings
         Setting::setValue('company_name', 'BAZMA Express', 'Nama perusahaan ekspedisi');
         Setting::setValue('company_address', 'Jl. Raya BAZMA No. 1, Bogor, Jawa Barat', 'Alamat kantor pusat');
         Setting::setValue('company_phone', '0812-3456-7890', 'Nomor HP/WA CS');
         Setting::setValue('company_email', 'support@bazma-express.com', 'Alamat email bantuan');
         Setting::setValue('midtrans_mock_mode', 'true', 'Gunakan simulasi checkout lokal jika serverKey kosong/tidak valid');
+        Setting::setValue('booking_expiry_hours', '24', 'Batas waktu pembayaran booking dalam jam (default: 24 jam)');
+        Setting::setValue('max_delivery_attempts', '3', 'Jumlah maksimal percobaan pengantaran sebelum paket dikembalikan (return-to-sender)');
 
-        // 6. Create Vehicles
+        // 7. Create Vehicles
         Vehicle::create([
             'plate_number' => 'B 1234 BZM',
             'type' => 'motor',
@@ -201,11 +216,11 @@ class DatabaseSeeder extends Seeder
             'type' => 'truck',
             'courier_id' => null
         ]);
-        // 7. Seed Transactional Sample Data
+
+        // 8. Seed Transactional Sample Data
         $this->call(ShipmentTransactionSeeder::class);
 
-        // 8. Seed Landing Contents
-        // Hero Section
+        // 9. Seed Landing Contents
         LandingContent::create([
             'section' => 'hero',
             'title' => 'Kirim Paket Lebih Cepat & Hemat',
@@ -215,7 +230,6 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        // Promo Section items
         LandingContent::create([
             'section' => 'promo',
             'title' => 'Free Ongkir',
@@ -224,24 +238,7 @@ class DatabaseSeeder extends Seeder
             'order' => 1,
             'is_active' => true,
         ]);
-        LandingContent::create([
-            'section' => 'promo',
-            'title' => 'Diskon 20%',
-            'content' => 'Hemat 20% untuk pengiriman reguler ke seluruh kota setiap hari Selasa dan Rabu.',
-            'image' => null,
-            'order' => 2,
-            'is_active' => true,
-        ]);
-        LandingContent::create([
-            'section' => 'promo',
-            'title' => 'Flash Delivery',
-            'content' => 'Layanan ekspres same-day untuk pengiriman dalam kota. Jaminan tiba hari ini.',
-            'image' => null,
-            'order' => 3,
-            'is_active' => true,
-        ]);
 
-        // Features Section items
         LandingContent::create([
             'section' => 'features',
             'title' => 'Lacak Paket Real-time',
@@ -250,34 +247,16 @@ class DatabaseSeeder extends Seeder
             'order' => 1,
             'is_active' => true,
         ]);
-        LandingContent::create([
-            'section' => 'features',
-            'title' => 'Kalkulator Ongkir',
-            'content' => 'Hitung estimasi biaya pengiriman secara instan sebelum booking. Tanpa biaya tersembunyi.',
-            'image' => null,
-            'order' => 2,
-            'is_active' => true,
-        ]);
-        LandingContent::create([
-            'section' => 'features',
-            'title' => 'Jaringan Luas',
-            'content' => 'Didukung cabang di berbagai kota besar Indonesia. Cepat, aman, dan terpercaya.',
-            'image' => null,
-            'order' => 3,
-            'is_active' => true,
-        ]);
 
-        // About Section
         LandingContent::create([
             'section' => 'about',
             'title' => 'Tentang Kirimin Express',
-            'content' => 'Kirimin Express adalah layanan ekspedisi terpercaya yang melayani pengiriman ke seluruh Indonesia. Dengan teknologi modern dan jaringan cabang yang luas, kami memastikan setiap paket sampai dengan aman, tepat waktu, dan dengan harga terjangkau.',
+            'content' => 'Kirimin Express adalah layanan ekspedisi terpercaya yang melayani pengiriman ke seluruh Indonesia. Dengan teknologi modern dan jaringan 8 cabang hub logistik, kami memastikan setiap paket sampai dengan aman, tepat waktu, dan dengan harga terjangkau.',
             'image' => null,
             'order' => 1,
             'is_active' => true,
         ]);
 
-        // Contact Section
         LandingContent::create([
             'section'   => 'contact',
             'title'     => 'Hubungi Kami',
@@ -286,11 +265,5 @@ class DatabaseSeeder extends Seeder
             'order'     => 1,
             'is_active' => true,
         ]);
-
-        // Settings default
-        Setting::setValue('booking_expiry_hours', '24', 'Batas waktu pembayaran booking dalam jam (default: 24 jam)');
-        Setting::setValue('max_delivery_attempts', '3', 'Jumlah maksimal percobaan pengantaran sebelum paket dikembalikan (return-to-sender)');
-        Setting::setValue('company_name', 'BAZMA Express', 'Nama perusahaan ekspedisi');
-        Setting::setValue('company_phone', '0800-1234-5678', 'Nomor telepon CS');
     }
 }

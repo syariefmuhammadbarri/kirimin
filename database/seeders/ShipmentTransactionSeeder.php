@@ -666,6 +666,79 @@ class ShipmentTransactionSeeder extends Seeder
             'tracked_at'  => now()->subHour(),
         ]);
 
-        $this->command->info('10 sample transactional records seeded successfully!');
+        // ===== 11. MULTI-HOP TRANSIT DEMO (Medan -> Palembang -> Jakarta -> Bandung) =====
+        $branchPlb = $branches->firstWhere('city', 'Palembang');
+        $adminPlb = User::where('email', 'admin.palembang@ekspedisi.com')->first();
+
+        $shipment11 = Shipment::create([
+            'tracking_number' => 'EXP-20260722-MHOP11',
+            'booking_code'    => 'BK-20260722-MHOP11',
+            'customer_id'     => $customer->id,
+            'branch_id'       => $branchPlb?->id,
+            'next_branch_id'  => $branchJkt?->id,
+            'status'          => 'in_transit',
+            'fulfillment_type'=> 'dropoff',
+            'origin_city'     => 'Medan',
+            'destination_city'=> 'Bandung',
+            'sender_name'     => 'Siti Medan',
+            'sender_phone'    => '081299887766',
+            'sender_address'  => 'Jl. S. Parman No. 50, Medan',
+            'receiver_name'   => 'Rian Bandung',
+            'receiver_phone'  => '082211445566',
+            'receiver_address'=> 'Jl. Riau No. 99, Bandung',
+            'estimated_weight'=> 4.00,
+            'actual_weight'   => 4.00,
+            'estimated_price' => 60000,
+            'actual_price'    => 60000,
+            'total_price'     => 60000,
+            'service_type'    => 'express',
+        ]);
+
+        ShipmentItem::create([
+            'shipment_id' => $shipment11->id,
+            'item_name'   => 'Oleh-oleh Khas Medan',
+            'quantity'    => 2,
+            'weight'      => 2.00,
+        ]);
+
+        $payment11 = Payment::create([
+            'order_id'       => $shipment11->tracking_number,
+            'shipment_id'    => $shipment11->id,
+            'amount'         => 60000,
+            'payment_method' => 'midtrans',
+            'payment_status' => 'paid',
+        ]);
+        $shipment11->update(['payment_id' => $payment11->id]);
+
+        ShipmentTracking::create([
+            'shipment_id' => $shipment11->id,
+            'location'    => 'Medan',
+            'description' => 'Booking pengiriman dibuat oleh pengirim.',
+            'status'      => 'booking_created',
+            'tracked_at'  => now()->subDays(3),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment11->id,
+            'location'    => 'Medan',
+            'description' => 'Berangkat dari Cabang Cabang Medan Baru (Medan) menuju Cabang Cabang Palembang Hub (Palembang).',
+            'status'      => 'in_transit',
+            'tracked_at'  => now()->subDays(2),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment11->id,
+            'location'    => 'Palembang',
+            'description' => 'Tiba di Cabang Cabang Palembang Hub (Palembang), diterima oleh ' . ($adminPlb?->name ?? 'Admin Palembang') . '.',
+            'status'      => 'received_at_branch',
+            'tracked_at'  => now()->subDays(1),
+        ]);
+        ShipmentTracking::create([
+            'shipment_id' => $shipment11->id,
+            'location'    => 'Palembang',
+            'description' => 'Berangkat dari Cabang Cabang Palembang Hub (Palembang) menuju Cabang Cabang Jakarta Pusat (Jakarta).',
+            'status'      => 'in_transit',
+            'tracked_at'  => now()->subHours(5),
+        ]);
+
+        $this->command->info('11 sample transactional records seeded successfully!');
     }
 }

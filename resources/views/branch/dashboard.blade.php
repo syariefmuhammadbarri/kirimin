@@ -15,7 +15,9 @@
     .status-assigned_to_courier { @apply bg-violet-50 text-violet-700 border-violet-200; }
     .status-picked_up { @apply bg-indigo-50 text-indigo-700 border-indigo-200; }
     .status-out_for_delivery { @apply bg-cyan-50 text-cyan-700 border-cyan-200; }
-    .status-delivered { @apply bg-emerald-50 text-emerald-700 border-emerald-200; }
+    .status-delivery_confirmation_pending { @apply bg-amber-100 text-amber-800 border-amber-300 font-bold animate-pulse; }
+    .status-accepted { @apply bg-emerald-100 text-emerald-800 border-emerald-300 font-bold; }
+    .status-delivered { @apply bg-emerald-100 text-emerald-800 border-emerald-300 font-bold; }
     .status-gagal_kirim { @apply bg-red-50 text-red-700 border-red-200; }
 </style>
 @endsection
@@ -27,15 +29,25 @@
         <h1 class="text-2xl font-bold text-slate-900">Admin Panel — {{ $branch->name }}</h1>
         <p class="text-sm text-slate-600 mt-1">Kota: <span class="text-slate-700">{{ $branch->city }}</span> &bull; {{ $branch->address }}</p>
     </div>
-    <a href="{{ route('branch.scan.show') }}"
-       class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-lg shadow-slate-900/20 transition">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5A7.5 7.5 0 117.5 9 7.5 7.5 0 0121 15.5z"/></svg>
-        Scan / Cari Paket
-    </a>
+    <div class="flex items-center gap-3">
+        <a href="{{ route('branch.delivery-confirmations') }}"
+           class="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow transition relative">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Konfirmasi Delivery
+            @if(($stats['delivery_confirmation'] ?? 0) > 0)
+                <span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">{{ $stats['delivery_confirmation'] }}</span>
+            @endif
+        </a>
+        <a href="{{ route('branch.scan.show') }}"
+           class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-lg shadow-slate-900/20 transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5A7.5 7.5 0 117.5 9 7.5 7.5 0 0121 15.5z"/></svg>
+            Scan / Cari Paket
+        </a>
+    </div>
 </div>
 
 {{-- Stats Row --}}
-<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3 mb-8">
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-11 gap-3 mb-8">
     @php
     $statItems = [
         ['label' => 'Total', 'value' => $stats['total'], 'color' => 'slate', 'status' => ''],
@@ -46,7 +58,9 @@
         ['label' => 'Diterima Cabang', 'value' => $stats['received'], 'color' => 'indigo', 'status' => 'received_at_branch'],
         ['label' => 'Assign Delivery', 'value' => $stats['assigned'], 'color' => 'violet', 'status' => 'assigned_to_courier'],
         ['label' => 'Transit/Antar', 'value' => $stats['transit'], 'color' => 'cyan', 'status' => 'in_transit'],
-        ['label' => 'Terkirim', 'value' => $stats['delivered'], 'color' => 'emerald', 'status' => 'delivered'],
+        ['label' => 'Verifikasi Antar', 'value' => $stats['delivery_confirmation'] ?? 0, 'color' => 'amber', 'status' => 'delivery_confirmation_pending'],
+        ['label' => 'Transit Masuk', 'value' => $stats['transit_in'] ?? 0, 'color' => 'sky', 'status' => 'in_transit'],
+        ['label' => 'ACCEPTED (TERKIRIM)', 'value' => $stats['delivered'], 'color' => 'emerald', 'status' => 'delivered'],
     ];
     $colorMap = [
         'slate' => 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50',
@@ -55,6 +69,8 @@
         'indigo' => 'border-indigo-200 text-indigo-700 bg-indigo-50/20 hover:bg-indigo-50/40',
         'violet' => 'border-violet-200 text-violet-700 bg-violet-50/20 hover:bg-violet-50/40',
         'cyan' => 'border-cyan-200 text-cyan-700 bg-cyan-50/20 hover:bg-cyan-50/40',
+        'amber' => 'border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100',
+        'sky' => 'border-sky-200 text-sky-700 bg-sky-50/20 hover:bg-sky-50/40',
         'emerald' => 'border-emerald-200 text-emerald-700 bg-emerald-50/20 hover:bg-emerald-50/40'
     ];
     @endphp
@@ -123,9 +139,13 @@
                             @endif
                         </td>
                         <td class="px-5 py-4 text-center">
-                            <span class="status-badge status-{{ $shipment->status }}">
-                                {{ str_replace('_',' ',$shipment->status) }}
-                            </span>
+                            @if($shipment->status === 'delivered')
+                                <span class="status-badge status-accepted">ACCEPTED</span>
+                            @else
+                                <span class="status-badge status-{{ $shipment->status }}">
+                                    {{ str_replace('_',' ',$shipment->status) }}
+                                </span>
+                            @endif
                         </td>
                         <td class="px-5 py-4 text-right">
                             <div class="flex items-center justify-end gap-2 flex-wrap">
@@ -133,6 +153,7 @@
                                 @if($shipment->payment && $shipment->payment->payment_status !== 'paid' && in_array($shipment->status, ['weighed','booking_created','waiting_dropoff']))
                                 <form method="POST" action="{{ route('branch.confirm-cash', $shipment) }}" onsubmit="return confirm('Konfirmasi pembayaran tunai?')">
                                     @csrf
+                                    <input type="hidden" name="paid_amount" value="{{ $shipment->total_price }}">
                                     <button class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-2.5 py-1.5 rounded transition">
                                         Konfirmasi Cash
                                     </button>
@@ -171,6 +192,13 @@
                                         class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-2.5 py-1.5 rounded transition">
                                     Tugaskan Kurir
                                 </button>
+                                @endif
+
+                                {{-- Verifikasi Delivery --}}
+                                @if($shipment->status === 'delivery_confirmation_pending')
+                                <a href="{{ route('branch.delivery-confirmations') }}" class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold px-2.5 py-1.5 rounded transition shadow-sm inline-flex items-center gap-1">
+                                    ✓ Verifikasi Bukti
+                                </a>
                                 @endif
 
                                 {{-- Scan/Process --}}

@@ -11,7 +11,7 @@ class MidtransService
     public function getSnapToken(Shipment $shipment): string
     {
         $serverKey = config('services.midtrans.server_key');
-        $mockMode = filter_var(config('services.midtrans.mock_mode', true), FILTER_VALIDATE_BOOLEAN);
+        $mockMode = filter_var(config('services.midtrans.mock_mode', false), FILTER_VALIDATE_BOOLEAN);
 
         if ($mockMode || empty($serverKey) || $serverKey === 'mock_server_key') {
             Log::info("Midtrans in mock mode. Returning mock snap token for: " . $shipment->tracking_number);
@@ -81,5 +81,75 @@ class MidtransService
         $localSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
 
         return hash_equals($localSignature, $signatureKey);
+    }
+
+    public function syncPaymentStatus(Shipment $shipment): bool
+    {
+        $serverKey = config('services.midtrans.server_key');
+        if (empty($serverKey) || $serverKey === 'mock_server_key') {
+            return false;
+        }
+
+        try {
+            \Midtrans\Config::$serverKey = $serverKey;
+            \Midtrans\Config::$isProduction = filter_var(config('services.midtrans.is_production', false), FILTER_VALIDATE_BOOLEAN);
+
+            $statusResponse = \Midtrans\Transaction::status($shipment->tracking_number);
+            
+            $transactionStatus = is_object($statusResponse) ? ($statusResponse->transaction_status ?? null) : ($statusResponse['transaction_status'] ?? null);
+            $fraudStatus = is_object($statusResponse) ? ($statusResponse->fraud_status ?? null) : ($statusResponse['fraud_status'] ?? null);
+            $paymentType = is_object($statusResponse) ? ($statusResponse->payment_type ?? null) : ($statusResponse['payment_type'] ?? null);
+
+            if (in_array($transactionStatus, ['settlement', 'capture'])) {
+                if ($transactionStatus === 'capture' && $fraudStatus === 'challenge') {
+                    return false;
+                }
+                
+                $payment = $shipment->payment;
+                if ($payment) {
+                    $paymentMethodMap = [
+                        'credit_card' => 'transfer',
+                        'bank_transfer' => 'transfer',
+                        'echannel' => 'transfer',
+                        'gopay' => 'e-wallet',
+                        'shopeepay' => 'e-wallet',
+                        'qris' => 'e-wallet',
+                        'indomaret' => 'cash',
+                        'alfamart' => 'cash',
+                    ];
+                    $mappedMethod = $paymentMethodMap[$paymentType] ?? 'midtrans';
+
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $shipment, $mappedMethod) {
+                        $payment->update([
+                            'payment_status' => 'paid',
+                            'payment_method' => \App\Models\Payment::normalizePaymentMethod($mappedMethod),
+                        ]);
+
+                        $shipmentStatus = $shipment->status;
+                        if (in_array($shipmentStatus, ['booking_created', 'payment_pending'])) {
+                            $newStatus = $shipment->fulfillment_type === 'pickup' ? 'pickup_scheduled' : 'waiting_dropoff';
+                            $shipment->update(['status' => $newStatus]);
+
+                            $description = $shipment->fulfillment_type === 'pickup'
+                                ? 'Pembayaran lunas via Midtrans. Menunggu penjemputan oleh kurir.'
+                                : 'Pembayaran lunas via Midtrans. Status berubah menjadi Siap Drop-Off.';
+
+                            \App\Models\ShipmentTracking::create([
+                                'shipment_id' => $shipment->id,
+                                'location' => $shipment->origin_city,
+                                'description' => $description,
+                                'status' => $newStatus,
+                                'tracked_at' => now(),
+                            ]);
+                        }
+                    });
+                    return true;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error("Midtrans status query error for {$shipment->tracking_number}: " . $e->getMessage());
+        }
+
+        return false;
     }
 }

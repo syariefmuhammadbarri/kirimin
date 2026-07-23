@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\City;
 use App\Models\Customer;
 use App\Models\LandingContent;
 use App\Models\Payment;
@@ -111,7 +112,15 @@ class CustomerController extends Controller
 
     public function showBooking()
     {
-        $cities = \App\Models\City::orderBy('province')->orderBy('name')->get();
+        // Ambil semua kota terurut untuk dropdown
+        $citiesRaw = City::orderBy('province')->orderBy('name')->get();
+
+        // Tandai setiap kota dengan flag is_serviced (apakah kota ini atau provinsinya dilayani cabang)
+        $cities = $citiesRaw->map(function ($city) {
+            $city->is_serviced = $this->resolveBranchForCity($city->name) !== null;
+            return $city;
+        });
+
         return view('customer.booking', compact('cities'));
     }
 
@@ -136,13 +145,49 @@ class CustomerController extends Controller
 
     /**
      * Helper: resolve branch_id from origin_city.
-     * FR-U1/BR-18: branch_id wajib terisi saat booking, bukan ditunda.
+     * FR-U1/BR-18: branch_id wajib terisi saat booking.
+     * Uses direct match, then province fallback via cities table.
      */
     private function resolveBranchForCity(string $city): ?int
     {
-        $branch = Branch::whereRaw('LOWER(city) = ?', [trim(strtolower($city))])->first();
-        return $branch?->id;
+        $cityClean = trim(strtolower($city));
+        $branches = Branch::all();
+
+        // 1. Direct match or keyword match
+        foreach ($branches as $b) {
+            $bCityClean = trim(strtolower($b->city));
+            if ($bCityClean === $cityClean || str_contains($cityClean, $bCityClean)) {
+                return $b->id;
+            }
+        }
+
+        // 2. Fallback to branch in the same province
+        $originCityRecord = City::where(function($q) use ($cityClean) {
+            $cleanWithoutPrefix = str_replace(['kota ', 'kabupaten '], '', $cityClean);
+            $q->whereRaw('LOWER(name) = ?', [$cityClean])
+              ->orWhereRaw('LOWER(REPLACE(REPLACE(name, "KOTA ", ""), "KABUPATEN ", "")) = ?', [$cleanWithoutPrefix]);
+        })->first();
+
+        if ($originCityRecord && $originCityRecord->province) {
+            $province = $originCityRecord->province;
+            $provinceCityNames = City::where('province', $province)
+                ->pluck('name')
+                ->map(fn($n) => trim(strtolower($n)))
+                ->toArray();
+
+            foreach ($branches as $b) {
+                $bCityClean = trim(strtolower($b->city));
+                foreach ($provinceCityNames as $pName) {
+                    if ($bCityClean === $pName || str_contains($pName, $bCityClean)) {
+                        return $b->id;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
+
 
     public function createBooking(Request $request)
     {
@@ -294,6 +339,13 @@ class CustomerController extends Controller
             abort(404);
         }
 
+        // Auto-sync status with Midtrans API if currently unpaid
+        if ($payment->payment_status !== 'paid') {
+            $this->midtransService->syncPaymentStatus($shipment);
+            $payment->refresh();
+            $shipment->refresh();
+        }
+
         // Generate snap token if empty or recreate it
         if (empty($payment->snap_token)) {
             $snapToken = $this->midtransService->getSnapToken($shipment);
@@ -302,8 +354,91 @@ class CustomerController extends Controller
 
         return response()->json([
             'snap_token' => $payment->snap_token,
-            'amount' => $payment->amount,
+            'amount' => (float) $payment->amount,
+            'formatted_amount' => 'Rp ' . number_format($payment->amount, 0, ',', '.'),
             'tracking_number' => $shipment->tracking_number,
+            'booking_code' => $shipment->booking_code ?? $shipment->tracking_number,
+            'sender_name' => $shipment->sender_name,
+            'receiver_name' => $shipment->receiver_name,
+            'origin_city' => $shipment->origin_city,
+            'destination_city' => $shipment->destination_city,
+            'service_type' => strtoupper($shipment->service_type),
+            'weight' => $shipment->weight,
+            'fulfillment_type' => $shipment->fulfillment_type,
+            'payment_status' => $payment->payment_status,
+            'shipment_status' => $shipment->status,
+            'client_key' => config('services.midtrans.client_key'),
+            'mock_mode' => (bool) config('services.midtrans.mock_mode', false),
+        ]);
+    }
+
+    public function finishPayment(Request $request, Shipment $shipment)
+    {
+        $user = Auth::user();
+        $customer = Customer::where('user_id', $user->id)->first();
+        if (!$customer || $shipment->customer_id !== $customer->id) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $synced = $this->midtransService->syncPaymentStatus($shipment);
+        $status = $request->input('transaction_status') ?? $request->input('result.transaction_status');
+
+        if ($synced || in_array($status, ['settlement', 'capture', 'success'])) {
+            $payment = $shipment->payment;
+            if ($payment && $payment->payment_status !== 'paid') {
+                DB::transaction(function () use ($payment, $shipment) {
+                    $payment->update([
+                        'payment_status' => 'paid',
+                        'payment_method' => Payment::normalizePaymentMethod('midtrans')
+                    ]);
+                    $newStatus = $shipment->fulfillment_type === 'pickup' ? 'pickup_scheduled' : 'waiting_dropoff';
+                    $shipment->update(['status' => $newStatus]);
+
+                    $description = $shipment->fulfillment_type === 'pickup'
+                        ? 'Pembayaran lunas via Midtrans. Menunggu penjemputan oleh kurir.'
+                        : 'Pembayaran lunas via Midtrans. Status berubah menjadi Siap Drop-Off.';
+
+                    ShipmentTracking::create([
+                        'shipment_id' => $shipment->id,
+                        'location' => $shipment->origin_city,
+                        'description' => $description,
+                        'status' => $newStatus,
+                        'tracked_at' => now(),
+                    ]);
+                });
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pembayaran berhasil dikonfirmasi.',
+                'payment_status' => 'paid',
+                'shipment_status' => $shipment->fresh()->status,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status pembayaran diperbarui.',
+            'payment_status' => $shipment->payment->fresh()->payment_status ?? 'pending',
+            'shipment_status' => $shipment->fresh()->status,
+        ]);
+    }
+
+    public function syncPayment(Shipment $shipment)
+    {
+        $user = Auth::user();
+        $customer = Customer::where('user_id', $user->id)->first();
+        if (!$customer || $shipment->customer_id !== $customer->id) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $synced = $this->midtransService->syncPaymentStatus($shipment);
+
+        return response()->json([
+            'success' => $synced,
+            'payment_status' => $shipment->payment->fresh()->payment_status ?? 'pending',
+            'shipment_status' => $shipment->fresh()->status,
+            'message' => $synced ? 'Status pembayaran berhasil diperbarui ke Lunas!' : 'Pembayaran belum terdeteksi Lunas di Midtrans.'
         ]);
     }
 

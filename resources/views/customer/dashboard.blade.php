@@ -148,7 +148,7 @@
                         </td>
                         <td class="px-6 py-4 text-center">
                             <span class="status-badge status-{{ $shipment->status }}">
-                                {{ str_replace('_', ' ', $shipment->status) }}
+                                {{ $shipment->status_label }}
                             </span>
                         </td>
                         <td class="px-6 py-4 text-right">
@@ -156,8 +156,16 @@
                                 {{-- Pay button if pending --}}
                                 @if($shipment->payment && $shipment->payment->payment_status !== 'paid' && !in_array($shipment->status, ['cancelled', 'returned']))
                                     <button onclick="openPaymentModal({{ $shipment->id }}, '{{ $shipment->tracking_number }}')"
-                                            class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition font-medium">
+                                            class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded transition font-medium shadow-sm">
                                         Bayar
+                                    </button>
+                                    <button onclick="syncPaymentStatus({{ $shipment->id }}, this)"
+                                            title="Cek Verifikasi Pembayaran Midtrans"
+                                            class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded transition font-medium flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
+                                        <span>Cek Status</span>
                                     </button>
                                 @endif
                                 {{-- Invoice download if paid --}}
@@ -188,35 +196,149 @@
 </div>
 
 {{-- Payment Modal --}}
-<div id="payment-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closePaymentModal()"></div>
+<div id="payment-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-modal="true" role="dialog">
+    <div class="fixed inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onclick="closePaymentModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6 relative z-10">
-            <h3 class="text-lg font-bold text-slate-800 mb-1">Pembayaran Pengiriman</h3>
-            <p id="modal-tracking" class="text-sm text-slate-600 mb-6 font-mono"></p>
-
-            <div class="space-y-3 mb-6">
-                <p class="text-sm text-slate-700">Pilih metode pembayaran:</p>
-                <!-- Snap embed - akan tampil saat Snap siap -->
-                <div id="snap-container" class="w-full min-h-[100px]"></div>
-
-                <!-- Fallback mock mode -->
-                <div id="mock-container" class="w-full">
-                    <div class="glass-panel rounded-lg border border-slate-200 p-4 text-center bg-slate-50">
-                        <p class="text-xs text-slate-600 mb-1">Midtrans Payment Gateway</p>
-                        <p class="text-sm text-slate-700">Klik tombol di bawah untuk simulasi pembayaran.</p>
+        <div class="glass-panel w-full max-w-lg rounded-3xl border border-blue-500/20 bg-slate-900/90 shadow-2xl p-6 sm:p-8 relative z-10 text-white transition-all">
+            
+            {{-- Header --}}
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
                     </div>
-                    <form id="mock-payment-form" method="POST" action="" class="mt-3">
-                        @csrf
-                        <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition">
-                            Simulasi Pembayaran Berhasil (Demo)
-                        </button>
-                    </form>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-lg font-bold text-white">Pembayaran Express</h3>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">Midtrans Secured</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Gateway Pembayaran Resmi & Terenkripsi</p>
+                    </div>
+                </div>
+                <button onclick="closePaymentModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Ringkasan Tagihan Card --}}
+            <div class="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 mb-6 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+                
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-medium text-slate-400">Nomor Resi / Booking</span>
+                    <span id="modal-tracking" class="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2.5 py-1 rounded-lg border border-blue-800/50"></span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs mb-3 py-2.5 border-y border-slate-700/50">
+                    <div>
+                        <p class="text-slate-400 text-[11px]">Rute Pengiriman</p>
+                        <p id="modal-route" class="font-semibold text-slate-200 mt-0.5">-</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-400 text-[11px]">Layanan & Berat</p>
+                        <p id="modal-service" class="font-semibold text-slate-200 mt-0.5">-</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                    <div>
+                        <p class="text-xs text-slate-400">Total Tagihan</p>
+                        <p class="text-[10px] text-slate-500">Termasuk pajak & biaya admin</p>
+                    </div>
+                    <p id="modal-amount" class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">Rp 0</p>
                 </div>
             </div>
 
-            <button onclick="closePaymentModal()" class="w-full mt-3 py-2.5 text-sm text-slate-600 hover:text-slate-800 transition">
-                Tutup
+            {{-- Support Badges Visual Preview --}}
+            <div id="payment-methods-preview" class="mb-6">
+                <p class="text-xs font-medium text-slate-400 mb-2.5 flex items-center justify-between">
+                    <span>Metode Pembayaran Didukung:</span>
+                    <span class="text-[10px] text-blue-400">Instan & Otomatis</span>
+                </p>
+                <div class="grid grid-cols-4 gap-2 text-center text-[11px]">
+                    <div class="p-2 rounded-xl bg-slate-800/40 border border-slate-700/50 flex flex-col items-center justify-center">
+                        <span class="font-bold text-slate-300">QRIS / GoPay</span>
+                        <span class="text-[9px] text-slate-500">Scan QR</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-800/40 border border-slate-700/50 flex flex-col items-center justify-center">
+                        <span class="font-bold text-slate-300">Virtual Account</span>
+                        <span class="text-[9px] text-slate-500">BCA, Mandiri, BNI</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-800/40 border border-slate-700/50 flex flex-col items-center justify-center">
+                        <span class="font-bold text-slate-300">Kartu Kredit</span>
+                        <span class="text-[9px] text-slate-500">Visa / Master</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-800/40 border border-slate-700/50 flex flex-col items-center justify-center">
+                        <span class="font-bold text-slate-300">Gerai Retail</span>
+                        <span class="text-[9px] text-slate-500">Indomaret/Alfa</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Loading State --}}
+            <div id="payment-loading" class="hidden py-8 text-center">
+                <div class="animate-spin w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                <p class="text-sm font-medium text-slate-300">Menyiapkan Sesi Pembayaran Midtrans...</p>
+                <p class="text-xs text-slate-500 mt-1">Harap tunggu sebentar</p>
+            </div>
+
+            {{-- Container untuk Snap Embed jika digunakan --}}
+            <div id="snap-container" class="w-full min-h-[50px] mb-4"></div>
+
+            {{-- Payment Action CTAs --}}
+            <div id="payment-actions" class="space-y-3">
+                <button id="btn-snap-pay" onclick="triggerSnapPopup()" type="button"
+                        class="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all transform active:scale-95">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    <span>Bayar Sekarang via Midtrans</span>
+                </button>
+
+                <button onclick="toggleEmbedMode()" type="button" class="w-full py-2 text-xs text-slate-400 hover:text-slate-200 transition text-center">
+                    Tampilkan Formulir Embed di Dalam Modal
+                </button>
+            </div>
+
+            {{-- Fallback mock mode container --}}
+            <div id="mock-container" class="hidden mt-4 pt-4 border-t border-slate-800">
+                <div class="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3.5 text-center mb-3">
+                    <p class="text-xs font-semibold text-amber-400 mb-0.5">⚠️ Mode Mock / Demo Aktif</p>
+                    <p class="text-[11px] text-slate-400">Midtrans diset ke mode simulasi. Pembayaran dapat diselesaikan tanpa kartu/VA asli.</p>
+                </div>
+                <form id="mock-payment-form" method="POST" action="">
+                    @csrf
+                    <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl transition shadow-md">
+                        ✓ Simulasi Pembayaran Berhasil (Demo)
+                    </button>
+                </form>
+            </div>
+
+            {{-- Success Overlay Container --}}
+            <div id="payment-success-state" class="hidden text-center py-6">
+                <div class="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-400">
+                    <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h4 class="text-xl font-bold text-white mb-1">Pembayaran Berhasil!</h4>
+                <p class="text-xs text-slate-400 mb-6">Status pesanan Anda telah diperbarui. Terima kasih!</p>
+                <div class="flex gap-3">
+                    <button onclick="location.reload()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl border border-slate-700 transition">
+                        Tutup & Refresh
+                    </button>
+                    <a id="btn-success-invoice" href="#" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition text-center flex items-center justify-center gap-1">
+                        <span>Unduh Invoice</span>
+                    </a>
+                </div>
+            </div>
+
+            <button onclick="closePaymentModal()" class="w-full mt-4 py-2 text-xs text-slate-500 hover:text-slate-300 transition">
+                Tutup Pembayaran
             </button>
         </div>
     </div>
@@ -267,76 +389,227 @@
 @section('scripts')
 @php
 $midtransClientKey = config('services.midtrans.client_key');
-$midtransMockMode = config('services.midtrans.mock_mode', true);
+$midtransMockMode = config('services.midtrans.mock_mode', false);
 @endphp
+
+<!-- Midtrans Snap JS Script -->
+<script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="{{ $midtransClientKey }}"></script>
+
 <script>
-// ====== Midtrans Snap Integration ======
+// Global Midtrans State Variables
 const MIDTRANS_CLIENT_KEY = '{{ $midtransClientKey }}';
 const IS_MOCK_MODE = {{ $midtransMockMode ? 'true' : 'false' }};
 
-// Load Snap script hanya jika real mode dan client_key tersedia
-if (!IS_MOCK_MODE && MIDTRANS_CLIENT_KEY && MIDTRANS_CLIENT_KEY !== 'SB-Mid-client-your_client_key_here') {
-    const snapScript = document.createElement('script');
-    snapScript.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
-    snapScript.setAttribute('data-client-key', MIDTRANS_CLIENT_KEY);
-    document.head.appendChild(snapScript);
-}
+let activeSnapToken = null;
+let activeShipmentId = null;
 
 function openPaymentModal(shipmentId, trackingNumber) {
-    document.getElementById('modal-tracking').textContent = 'Resi: ' + trackingNumber;
+    activeShipmentId = shipmentId;
+    activeSnapToken = null;
+
+    // Reset UI state
+    document.getElementById('modal-tracking').textContent = trackingNumber;
+    document.getElementById('modal-route').textContent = 'Memuat...';
+    document.getElementById('modal-service').textContent = 'Memuat...';
+    document.getElementById('modal-amount').textContent = 'Rp ...';
     document.getElementById('mock-payment-form').action = '/customer/payment/mock-settle/' + shipmentId;
+    document.getElementById('btn-success-invoice').href = '/customer/invoice/' + shipmentId;
 
-    if (!IS_MOCK_MODE && MIDTRANS_CLIENT_KEY && MIDTRANS_CLIENT_KEY !== 'SB-Mid-client-your_client_key_here') {
-        // === REAL MIDTRANS SNAP MODE ===
-        document.getElementById('mock-container').style.display = 'none';
-        document.getElementById('snap-container').innerHTML = '<div class="text-center py-8"><div class="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-3"></div><p class="text-sm text-slate-600">Memuat pembayaran...</p></div>';
-        document.getElementById('payment-modal').classList.remove('hidden');
+    document.getElementById('snap-container').innerHTML = '';
+    document.getElementById('payment-loading').classList.remove('hidden');
+    document.getElementById('payment-actions').classList.add('hidden');
+    document.getElementById('payment-methods-preview').classList.remove('hidden');
+    document.getElementById('mock-container').classList.add('hidden');
+    document.getElementById('payment-success-state').classList.add('hidden');
+    
+    document.getElementById('payment-modal').classList.remove('hidden');
 
-        // Fetch snap token via AJAX
-        fetch('/customer/payment/' + shipmentId)
-            .then(res => res.json())
-            .then(data => {
-                if (data.snap_token && data.snap_token !== '' && !data.snap_token.startsWith('mock_')) {
-                    window.snapEmbed(data.snap_token, 'snap-container', {
-                        onSuccess: function(result) {
-                            document.getElementById('snap-container').innerHTML =
-                                '<div class="text-center py-6 text-emerald-600"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><p class="font-semibold">Pembayaran Berhasil!</p><p class="text-xs text-slate-500 mt-1">Silakan tutup dan refresh halaman.</p></div>';
-                            setTimeout(() => location.reload(), 2000);
-                        },
-                        onPending: function(result) {
-                            document.getElementById('snap-container').innerHTML =
-                                '<div class="text-center py-6 text-amber-600"><p class="font-semibold">Menunggu Pembayaran</p><p class="text-xs text-slate-500 mt-1">Selesaikan pembayaran Anda di halaman Midtrans.</p></div>';
-                        },
-                        onError: function(result) {
-                            document.getElementById('snap-container').innerHTML =
-                                '<div class="text-center py-6 text-red-600"><p class="font-semibold">Gagal Memproses</p><p class="text-xs text-slate-500 mt-1">Silakan coba lagi.</p></div>';
-                        },
-                        onClose: function() {
-                            document.getElementById('snap-container').innerHTML = '';
-                        }
-                    });
-                } else {
-                    // Token mock → fallback ke mock container
-                    document.getElementById('mock-container').style.display = 'block';
-                    document.getElementById('snap-container').innerHTML = '';
-                }
-            })
-            .catch(() => {
-                document.getElementById('mock-container').style.display = 'block';
-                document.getElementById('snap-container').innerHTML = '';
-            });
-    } else {
-        // === MOCK MODE ===
-        document.getElementById('mock-container').style.display = 'block';
-        document.getElementById('snap-container').innerHTML = '';
-        document.getElementById('payment-modal').classList.remove('hidden');
+    // Fetch details & Snap token
+    fetch('/customer/payment/' + shipmentId)
+        .then(res => {
+            if (!res.ok) throw new Error('Gagal mengambil data pembayaran');
+            return res.json();
+        })
+        .then(data => {
+            document.getElementById('payment-loading').classList.add('hidden');
+
+            if (data.tracking_number) {
+                document.getElementById('modal-tracking').textContent = data.tracking_number;
+            }
+            if (data.origin_city && data.destination_city) {
+                document.getElementById('modal-route').textContent = data.origin_city + ' ➔ ' + data.destination_city;
+            }
+            if (data.service_type) {
+                document.getElementById('modal-service').textContent = data.service_type + ' (' + (data.weight || 1) + ' kg)';
+            }
+            if (data.formatted_amount) {
+                document.getElementById('modal-amount').textContent = data.formatted_amount;
+            }
+
+            activeSnapToken = data.snap_token;
+
+            const isMockToken = !activeSnapToken || activeSnapToken === '' || activeSnapToken.startsWith('mock_');
+
+            if (!IS_MOCK_MODE && !isMockToken && typeof window.snap !== 'undefined') {
+                // Real Snap Token Ready
+                document.getElementById('payment-actions').classList.remove('hidden');
+                document.getElementById('mock-container').classList.add('hidden');
+            } else {
+                // Mock Mode fallback
+                document.getElementById('payment-actions').classList.add('hidden');
+                document.getElementById('mock-container').classList.remove('hidden');
+            }
+        })
+        .catch(err => {
+            console.error('Payment details error:', err);
+            document.getElementById('payment-loading').classList.add('hidden');
+            document.getElementById('mock-container').classList.remove('hidden');
+        });
+}
+
+function triggerSnapPopup() {
+    if (!activeSnapToken || activeSnapToken.startsWith('mock_')) {
+        alert('Snap token tidak valid. Menggunakan simulasi mock.');
+        document.getElementById('mock-container').classList.remove('hidden');
+        return;
     }
+
+    if (typeof window.snap === 'undefined') {
+        alert('Midtrans Snap JS belum selesai dimuat. Silakan coba beberapa detik lagi.');
+        return;
+    }
+
+    // Launch official Midtrans Snap Popup Window
+    window.snap.pay(activeSnapToken, {
+        onSuccess: function(result) {
+            console.log('Snap Payment Success:', result);
+            sendPaymentFinish(result);
+        },
+        onPending: function(result) {
+            console.log('Snap Payment Pending:', result);
+            alert('Pembayaran pending. Silakan selesaikan instruksi pembayaran yang tertera.');
+        },
+        onError: function(result) {
+            console.error('Snap Payment Error:', result);
+            alert('Gagal memproses pembayaran Midtrans. Silakan coba kembali.');
+        },
+        onClose: function() {
+            console.log('Snap popup closed by customer');
+            if (activeShipmentId) {
+                fetch('/customer/payment/sync/' + activeShipmentId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
+                }).then(res => res.json()).then(data => {
+                    if (data.payment_status === 'paid' || data.success) {
+                        location.reload();
+                    }
+                });
+            }
+        }
+    });
+}
+
+function sendPaymentFinish(result) {
+    if (!activeShipmentId) return;
+
+    fetch('/customer/payment/finish/' + activeShipmentId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ result: result })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log('Payment finish sync response:', data);
+        showPaymentSuccessUI();
+    })
+    .catch(err => {
+        console.error('Error syncing payment finish:', err);
+        showPaymentSuccessUI();
+    });
+}
+
+function syncPaymentStatus(shipmentId, btnElement) {
+    if (btnElement) {
+        btnElement.disabled = true;
+        btnElement.classList.add('opacity-50');
+        btnElement.innerHTML = '<span class="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> <span>Mengecek...</span>';
+    }
+
+    fetch('/customer/payment/sync/' + shipmentId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message);
+        if (data.success || data.payment_status === 'paid') {
+            location.reload();
+        } else if (btnElement) {
+            btnElement.disabled = false;
+            btnElement.classList.remove('opacity-50');
+            btnElement.innerHTML = '<svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg><span>Cek Status</span>';
+        }
+    })
+    .catch(err => {
+        alert('Gagal mengecek status pembayaran.');
+        if (btnElement) {
+            btnElement.disabled = false;
+            btnElement.classList.remove('opacity-50');
+            btnElement.innerHTML = '<svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg><span>Cek Status</span>';
+        }
+    });
+}
+
+function toggleEmbedMode() {
+    if (!activeSnapToken || activeSnapToken.startsWith('mock_')) {
+        alert('Token mock tidak dapat di-embed.');
+        return;
+    }
+
+    document.getElementById('payment-actions').classList.add('hidden');
+    document.getElementById('payment-methods-preview').classList.add('hidden');
+    document.getElementById('snap-container').innerHTML = '<div class="text-center py-4 text-xs text-slate-400">Memuat tampilan embed...</div>';
+
+    if (typeof window.snapEmbed !== 'undefined') {
+        window.snapEmbed(activeSnapToken, 'snap-container', {
+            onSuccess: function(result) {
+                sendPaymentFinish(result);
+            },
+            onPending: function(result) {
+                alert('Pembayaran pending.');
+            },
+            onError: function(result) {
+                alert('Gagal memproses pembayaran.');
+            },
+            onClose: function() {
+                document.getElementById('snap-container').innerHTML = '';
+                document.getElementById('payment-actions').classList.remove('hidden');
+                document.getElementById('payment-methods-preview').classList.remove('hidden');
+            }
+        });
+    } else {
+        alert('Embed Snap tidak didukung. Menggunakan modal popup.');
+        triggerSnapPopup();
+    }
+}
+
+function showPaymentSuccessUI() {
+    document.getElementById('payment-actions').classList.add('hidden');
+    document.getElementById('payment-methods-preview').classList.add('hidden');
+    document.getElementById('snap-container').innerHTML = '';
+    document.getElementById('mock-container').classList.add('hidden');
+    document.getElementById('payment-success-state').classList.remove('hidden');
 }
 
 function closePaymentModal() {
     document.getElementById('payment-modal').classList.add('hidden');
     document.getElementById('snap-container').innerHTML = '';
-    document.getElementById('mock-container').style.display = 'block';
 }
 
 function openCancelModal(shipmentId, bookingCode) {

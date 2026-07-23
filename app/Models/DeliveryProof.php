@@ -18,6 +18,7 @@ class DeliveryProof extends Model
     {
         return [
             'photos' => 'array',
+            'reviewed_at' => 'datetime',
         ];
     }
 

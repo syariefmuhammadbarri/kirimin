@@ -77,6 +77,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/booking', [CustomerController::class, 'createBooking'])->name('booking.store');
         Route::post('/calculate-rate', [CustomerController::class, 'calculateRate'])->name('calculate-rate');
         Route::get('/payment/{shipment}', [CustomerController::class, 'paymentDetails'])->name('payment.details');
+        Route::post('/payment/finish/{shipment}', [CustomerController::class, 'finishPayment'])->name('payment.finish');
+        Route::post('/payment/sync/{shipment}', [CustomerController::class, 'syncPayment'])->name('payment.sync');
         Route::post('/payment/mock-settle/{shipment}', [CustomerController::class, 'mockSettlePayment'])->name('payment.mock-settle');
         Route::get('/invoice/{shipment}', [CustomerController::class, 'downloadInvoice'])->name('invoice.download');
         // FR-01: Cancel shipment oleh customer

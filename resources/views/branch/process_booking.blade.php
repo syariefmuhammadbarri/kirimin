@@ -252,8 +252,31 @@
             </div>
             @endif
 
-            {{-- Send Transit --}}
-            @if(in_array($shipment->status, ['received_at_branch', 'weighed']) && $shipment->payment?->payment_status === 'paid')
+            @php
+                $destCityClean = trim(strtolower($shipment->destination_city));
+                $branchCityClean = trim(strtolower($branch->city));
+                $cleanDestWithoutPrefix = str_replace(['kota ', 'kabupaten '], '', $destCityClean);
+                $cleanBranchWithoutPrefix = str_replace(['kota ', 'kabupaten '], '', $branchCityClean);
+                $isFinalBranch = ($cleanBranchWithoutPrefix === $cleanDestWithoutPrefix) || str_contains($destCityClean, $branchCityClean) || str_contains($branchCityClean, $cleanDestWithoutPrefix);
+            @endphp
+
+            {{-- Final Destination Notice --}}
+            @if($isFinalBranch && in_array($shipment->status, ['received_at_branch', 'weighed']) && $shipment->payment?->payment_status === 'paid')
+            <div class="rounded-2xl bg-emerald-50 border border-emerald-200 p-5 mb-5">
+                <div class="flex items-start gap-3">
+                    <svg class="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <h3 class="text-sm font-bold text-emerald-800">Paket Telah Tiba di Cabang Tujuan Akhir ({{ $branch->name }})</h3>
+                        <p class="text-xs text-emerald-700 mt-1">Paket ini tidak perlu dikirim transit lagi. Silakan tugaskan kurir lokal di bawah ini untuk pengantaran langsung ke alamat penerima.</p>
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            {{-- Send Transit (Hanya tampil jika BELUM di cabang tujuan akhir) --}}
+            @if(!$isFinalBranch && in_array($shipment->status, ['received_at_branch', 'weighed']) && $shipment->payment?->payment_status === 'paid')
             <div class="glass-panel rounded-2xl border border-slate-200 p-5">
                 <h2 class="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
@@ -262,13 +285,21 @@
                 <form method="POST" action="{{ route('branch.send-transit', $shipment) }}">
                     @csrf
                     <div class="mb-4">
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Cabang Tujuan Transit</label>
+                        @php
+                            $allOtherBranches = (\App\Models\Branch::all())->reject(fn($b) => $b->id === $branch->id);
+                            if (isset($suggestedNextBranch) && $suggestedNextBranch) {
+                                $sortedBranches = $allOtherBranches->sortByDesc(fn($b) => $b->id === $suggestedNextBranch->id);
+                            } else {
+                                $sortedBranches = $allOtherBranches;
+                            }
+                        @endphp
                         <select name="next_branch_id" required class="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 transition text-sm">
                             <option value="">Pilih Cabang Tujuan</option>
-                            @foreach($branches ?? \App\Models\Branch::all() as $b)
-                                @if($b->id !== $branch->id)
-                                <option value="{{ $b->id }}">{{ $b->name }} ({{ $b->city }})</option>
-                                @endif
+                            @foreach($sortedBranches as $b)
+                                @php $isSuggested = isset($suggestedNextBranch) && $suggestedNextBranch && $b->id === $suggestedNextBranch->id; @endphp
+                                <option value="{{ $b->id }}" {{ $isSuggested ? 'selected' : '' }}>
+                                    {{ $b->name }} ({{ $b->city }}) {{ $isSuggested ? '⭐ (disarankan)' : '' }}
+                                </option>
                             @endforeach
                         </select>
                     </div>

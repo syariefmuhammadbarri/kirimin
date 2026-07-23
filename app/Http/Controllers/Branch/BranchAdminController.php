@@ -69,6 +69,8 @@ class BranchAdminController extends Controller
             'received' => $allShipments->where('status', 'received_at_branch')->count(),
             'assigned' => $allShipments->where('status', 'assigned_to_courier')->count(),
             'transit' => $allShipments->whereIn('status', ['in_transit', 'picked_up', 'out_for_delivery', 'picked_up_from_customer'])->count(),
+            'delivery_confirmation' => $allShipments->where('status', 'delivery_confirmation_pending')->count(),
+            'transit_in' => $allShipments->where('next_branch_id', $branchId)->where('status', 'in_transit')->count(),
             'delivered' => $allShipments->where('status', 'delivered')->count(),
         ];
 
@@ -124,7 +126,19 @@ class BranchAdminController extends Controller
 
         $shipment->load(['customer', 'items', 'payment']);
 
-        return view('branch.process_booking', compact('shipment', 'branch'));
+        // Suggest next hop using BFS
+        $destCityClean = trim(strtolower($shipment->destination_city));
+        $destBranch = Branch::all()->first(function($b) use ($destCityClean) {
+            $bClean = trim(strtolower($b->city));
+            return $bClean === $destCityClean || str_contains($destCityClean, $bClean);
+        });
+
+        $suggestedNextBranch = null;
+        if ($destBranch) {
+            $suggestedNextBranch = $this->rateService->suggestNextHop($branch, $destBranch);
+        }
+
+        return view('branch.process_booking', compact('shipment', 'branch', 'suggestedNextBranch'));
     }
 
     public function processWeigh(Request $request, Shipment $shipment)
@@ -249,7 +263,7 @@ class BranchAdminController extends Controller
             ]);
         });
 
-        return redirect()->route('branch.shipment.process', $shipment)->with('success', 'Pembayaran cash berhasil dikonfirmasi. Kembalian: Rp ' . number_format((float) $request->paid_amount - (float) $shipment->total_price, 0, ',', '.') . '.');
+        return back()->with('success', 'Pembayaran cash berhasil dikonfirmasi. Kembalian: Rp ' . number_format((float) $request->paid_amount - (float) $shipment->total_price, 0, ',', '.') . '.');
     }
 
     public function assignCourier(Request $request, Shipment $shipment)
@@ -265,7 +279,7 @@ class BranchAdminController extends Controller
 
         // FR-05: Validasi kurir harus berasal dari cabang yang sama dengan admin yang meng-assign
         if ($courier->branch_id !== $admin->branch_id) {
-            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Kurir ' . $courier->name . ' tidak terdaftar di cabang ' . $branch->name . '. Pilih kurir dari cabang yang sama.');
+            return back()->with('error', 'Kurir ' . $courier->name . ' tidak terdaftar di cabang ' . $branch->name . '. Pilih kurir dari cabang yang sama.');
         }
 
         // Check courier availability: max 5 active assignments
@@ -274,7 +288,7 @@ class BranchAdminController extends Controller
             ->count();
 
         if ($activeCount >= 5) {
-            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Kurir ini sudah memiliki ' . $activeCount . ' tugas aktif. Maksimal 5 tugas per kurir.');
+            return back()->with('error', 'Kurir ini sudah memiliki ' . $activeCount . ' tugas aktif. Maksimal 5 tugas per kurir.');
         }
 
         // Check if shipment already has an active assignment
@@ -283,16 +297,16 @@ class BranchAdminController extends Controller
             ->first();
 
         if ($existingAssignment) {
-            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
+            return back()->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
         }
 
         // Validasi status berdasarkan fulfillment_type
         $isPickup = $shipment->fulfillment_type === 'pickup';
         if ($isPickup && $shipment->status !== 'pickup_scheduled') {
-            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket pickup tidak dalam status menunggu penugasan kurir jemput.');
+            return back()->with('error', 'Paket pickup tidak dalam status menunggu penugasan kurir jemput.');
         }
         if (!$isPickup && $shipment->status !== 'received_at_branch') {
-            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Paket dropoff harus sudah diterima di cabang (received_at_branch) sebelum ditugaskan ke kurir.');
+            return back()->with('error', 'Paket dropoff harus sudah diterima di cabang (received_at_branch) sebelum ditugaskan ke kurir.');
         }
 
         DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch, $isPickup) {
@@ -329,7 +343,7 @@ class BranchAdminController extends Controller
             ]);
         });
 
-        return redirect()->route('branch.shipment.process', $shipment)->with('success', "Kurir {$courier->name} berhasil ditugaskan untuk paket {$shipment->tracking_number}.");
+        return back()->with('success', "Kurir {$courier->name} berhasil ditugaskan untuk paket {$shipment->tracking_number}.");
     }
 
     public function viewAssignments()
@@ -447,7 +461,17 @@ class BranchAdminController extends Controller
         $nextBranch = Branch::findOrFail($request->next_branch_id);
 
         if (!in_array($shipment->status, ['received_at_branch', 'weighed'])) {
-            return redirect()->route('branch.shipment.process', $shipment)->with('error', 'Status paket tidak valid untuk dikirim transit.');
+            return back()->with('error', 'Status paket tidak valid untuk dikirim transit.');
+        }
+
+        $destCityClean = trim(strtolower($shipment->destination_city));
+        $branchCityClean = trim(strtolower($branch->city));
+        $cleanDestWithoutPrefix = str_replace(['kota ', 'kabupaten '], '', $destCityClean);
+        $cleanBranchWithoutPrefix = str_replace(['kota ', 'kabupaten '], '', $branchCityClean);
+        $isFinalBranch = ($cleanBranchWithoutPrefix === $cleanDestWithoutPrefix) || str_contains($destCityClean, $branchCityClean) || str_contains($branchCityClean, $cleanDestWithoutPrefix);
+
+        if ($isFinalBranch) {
+            return back()->with('error', 'Paket sudah berada di cabang tujuan akhir (' . $branch->name . '). Tidak perlu dikirim transit lagi, silakan tugaskan kurir pengantaran.');
         }
 
         DB::transaction(function () use ($shipment, $branch, $nextBranch) {
@@ -459,13 +483,13 @@ class BranchAdminController extends Controller
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => "Paket diberangkatkan dari Cabang {$branch->name} menuju Cabang {$nextBranch->name} ({$nextBranch->city}).",
+                'description' => "Berangkat dari Cabang {$branch->name} ({$branch->city}) menuju Cabang {$nextBranch->name} ({$nextBranch->city}).",
                 'status' => 'in_transit',
                 'tracked_at' => now(),
             ]);
         });
 
-        return redirect()->route('branch.shipment.process', $shipment)->with('success', "Paket dikirim transit menuju {$nextBranch->name}.");
+        return back()->with('success', "Paket dikirim transit menuju {$nextBranch->name}.");
     }
 
     public function receiveTransit(Shipment $shipment)
@@ -477,7 +501,7 @@ class BranchAdminController extends Controller
             return redirect()->route('branch.dashboard')->with('error', 'Paket ini tidak dijadwalkan transit ke cabang Anda.');
         }
 
-        DB::transaction(function () use ($shipment, $branch) {
+        DB::transaction(function () use ($shipment, $branch, $admin) {
             $isFinalDestination = strtolower($branch->city) === strtolower($shipment->destination_city);
 
             $shipment->update([
@@ -489,9 +513,7 @@ class BranchAdminController extends Controller
             ShipmentTracking::create([
                 'shipment_id' => $shipment->id,
                 'location' => $branch->city,
-                'description' => $isFinalDestination
-                    ? "Paket transit telah tiba di Cabang {$branch->name} (cabang tujuan akhir)."
-                    : "Paket transit telah tiba di Cabang {$branch->name} (transit intermediate).",
+                'description' => "Tiba di Cabang {$branch->name} ({$branch->city}), diterima oleh {$admin->name}.",
                 'status' => 'received_at_branch',
                 'tracked_at' => now(),
             ]);
@@ -574,18 +596,32 @@ class BranchAdminController extends Controller
         $admin = Auth::user();
         $branch = Branch::findOrFail($admin->branch_id);
 
-        $pendingConfirmations = DeliveryProof::with(['shipment', 'courier'])
+        $pendingConfirmations = DeliveryProof::with(['shipment.customer', 'courier'])
             ->where('admin_status', 'pending')
-            ->whereHas('shipment', function ($query) use ($branch) {
-                $query->where('branch_id', $branch->id);
+            ->where(function ($query) use ($branch) {
+                $query->whereHas('shipment', function ($q) use ($branch) {
+                    $q->where('branch_id', $branch->id)
+                      ->orWhere('origin_city', $branch->city)
+                      ->orWhere('destination_city', $branch->city)
+                      ->orWhere('next_branch_id', $branch->id);
+                })->orWhereHas('courier', function ($q) use ($branch) {
+                    $q->where('branch_id', $branch->id);
+                });
             })
             ->latest()
             ->get();
 
-        $acceptedConfirmations = DeliveryProof::with(['shipment', 'courier'])
+        $acceptedConfirmations = DeliveryProof::with(['shipment.customer', 'courier'])
             ->where('admin_status', 'accepted')
-            ->whereHas('shipment', function ($query) use ($branch) {
-                $query->where('branch_id', $branch->id);
+            ->where(function ($query) use ($branch) {
+                $query->whereHas('shipment', function ($q) use ($branch) {
+                    $q->where('branch_id', $branch->id)
+                      ->orWhere('origin_city', $branch->city)
+                      ->orWhere('destination_city', $branch->city)
+                      ->orWhere('next_branch_id', $branch->id);
+                })->orWhereHas('courier', function ($q) use ($branch) {
+                    $q->where('branch_id', $branch->id);
+                });
             })
             ->latest()
             ->get();
@@ -630,7 +666,7 @@ class BranchAdminController extends Controller
             $shipment->notifyStatusChange('delivered', "Paket berhasil terkirim ke {$deliveryProof->recipient_name}. Terima kasih telah menggunakan Kirimin.", $shipment->destination_city);
         });
 
-        return redirect()->route('branch.delivery-confirmations')->with('success', 'Konfirmasi pengiriman diterima. Status paket berubah menjadi "Terkirim".');
+        return back()->with('success', 'Konfirmasi pengiriman diterima. Status paket berubah menjadi "Terkirim".');
     }
 
     /**
@@ -678,6 +714,6 @@ class BranchAdminController extends Controller
             $shipment->notifyStatusChange('out_for_delivery', "Konfirmasi pengiriman ditolak admin. Alasan: {$request->reject_reason}. Kurir akan memperbaiki.", $shipment->destination_city);
         });
 
-        return redirect()->route('branch.delivery-confirmations')->with('success', 'Konfirmasi ditolak. Paket dikembalikan ke status pengantaran.');
+        return back()->with('success', 'Konfirmasi ditolak. Paket dikembalikan ke status pengantaran.');
     }
 }
