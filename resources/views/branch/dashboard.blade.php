@@ -87,8 +87,8 @@
 </div>
 
 {{-- Shipments Table --}}
-<div class="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-    <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+<div class="glass-panel rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
         <h2 class="text-base font-semibold text-slate-800">Daftar Paket</h2>
         <span class="text-xs text-slate-600">{{ $stats['total'] }} paket</span>
     </div>

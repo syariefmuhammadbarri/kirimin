@@ -4,7 +4,7 @@
 <div class="max-w-4xl mx-auto">
     {{-- Back --}}
     <div class="mb-6">
-        <a href="{{ route('branch.scan.show') }}" class="text-sm text-slate-400 hover:text-white flex items-center gap-1 transition">
+        <a href="{{ route('branch.scan.show') }}" class="text-sm text-slate-500 hover:text-blue-600 flex items-center gap-1 transition">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             Kembali ke Scan
         </a>
@@ -12,8 +12,8 @@
 
     <div class="mb-8 flex items-start justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-white">Proses Paket Masuk</h1>
-            <p class="text-sm text-slate-400 mt-1">Cabang: <span class="text-slate-200 font-medium">{{ $branch->name }}</span></p>
+            <h1 class="text-2xl font-bold text-slate-900">Proses Paket Masuk</h1>
+            <p class="text-sm text-slate-500 mt-1">Cabang: <span class="text-slate-700 font-medium">{{ $branch->name }}</span></p>
         </div>
         <span class="text-xs font-semibold uppercase px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 mt-1">
             {{ str_replace('_', ' ', $shipment->status) }}
@@ -52,8 +52,8 @@
         {{-- Shipment Details --}}
         <div class="space-y-5">
             {{-- Resi & Route --}}
-            <div class="glass-panel rounded-2xl border border-slate-800 p-5">
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Identitas Paket</h2>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Identitas Paket</h2>
                 <div class="space-y-3 text-sm">
                     <div class="flex justify-between">
                         <span class="text-slate-500">Nomor Resi</span>
@@ -61,68 +61,68 @@
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Kode Booking</span>
-                        <span class="font-mono text-slate-300">{{ $shipment->booking_code }}</span>
+                        <span class="font-mono text-slate-600">{{ $shipment->booking_code }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Layanan</span>
-                        <span class="font-semibold uppercase text-{{ $shipment->service_type === 'express' ? 'amber' : 'slate' }}-400">
+                        <span class="font-semibold uppercase text-{{ $shipment->service_type === 'express' ? 'amber' : 'slate' }}-700">
                             {{ $shipment->service_type }}
                         </span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Rute</span>
-                        <span class="text-slate-200">{{ $shipment->origin_city }} → {{ $shipment->destination_city }}</span>
+                        <span class="text-slate-800">{{ $shipment->origin_city }} → {{ $shipment->destination_city }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Estimasi Berat</span>
-                        <span class="text-slate-200">{{ number_format($shipment->estimated_weight, 2) }} kg</span>
+                        <span class="text-slate-800">{{ number_format($shipment->estimated_weight, 2) }} kg</span>
                     </div>
                     @if($shipment->actual_weight)
                     <div class="flex justify-between">
                         <span class="text-slate-500">Berat Aktual</span>
-                        <span class="text-white font-semibold">{{ number_format($shipment->actual_weight, 2) }} kg</span>
+                        <span class="text-slate-900 font-semibold">{{ number_format($shipment->actual_weight, 2) }} kg</span>
                     </div>
                     @endif
                     <div class="flex justify-between">
                         <span class="text-slate-500">Estimasi Harga</span>
-                        <span class="text-white font-semibold">Rp {{ number_format($shipment->estimated_price, 0, ',', '.') }}</span>
+                        <span class="text-slate-900 font-semibold">Rp {{ number_format($shipment->estimated_price, 0, ',', '.') }}</span>
                     </div>
                     @if($shipment->actual_price)
                     <div class="flex justify-between">
                         <span class="text-slate-500">Harga Aktual</span>
-                        <span class="text-white font-semibold">Rp {{ number_format($shipment->actual_price, 0, ',', '.') }}</span>
+                        <span class="text-slate-900 font-semibold">Rp {{ number_format($shipment->actual_price, 0, ',', '.') }}</span>
                     </div>
                     @endif
                 </div>
             </div>
 
             {{-- Sender & Receiver --}}
-            <div class="glass-panel rounded-2xl border border-slate-800 p-5">
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Pengirim & Penerima</h2>
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Pengirim & Penerima</h2>
                 <div class="grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <p class="text-xs text-slate-500 mb-1">Pengirim</p>
-                        <p class="text-white font-medium">{{ $shipment->sender_name }}</p>
-                        <p class="text-slate-400 text-xs mt-0.5">{{ $shipment->sender_phone }}</p>
+                        <p class="text-slate-900 font-medium">{{ $shipment->sender_name }}</p>
+                        <p class="text-slate-500 text-xs mt-0.5">{{ $shipment->sender_phone }}</p>
                         <p class="text-slate-500 text-xs mt-1">{{ $shipment->sender_address }}</p>
                     </div>
                     <div>
                         <p class="text-xs text-slate-500 mb-1">Penerima</p>
-                        <p class="text-white font-medium">{{ $shipment->receiver_name }}</p>
-                        <p class="text-slate-400 text-xs mt-0.5">{{ $shipment->receiver_phone }}</p>
+                        <p class="text-slate-900 font-medium">{{ $shipment->receiver_name }}</p>
+                        <p class="text-slate-500 text-xs mt-0.5">{{ $shipment->receiver_phone }}</p>
                         <p class="text-slate-500 text-xs mt-1">{{ $shipment->receiver_address }}</p>
                     </div>
                 </div>
             </div>
 
             {{-- Items --}}
-            <div class="glass-panel rounded-2xl border border-slate-800 p-5">
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Daftar Barang ({{ $shipment->items->count() }} item)</h2>
-                <div class="divide-y divide-slate-800">
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Daftar Barang ({{ $shipment->items->count() }} item)</h2>
+                <div class="divide-y divide-slate-100">
                     @foreach($shipment->items as $item)
                     <div class="py-2.5 flex justify-between items-center text-sm">
-                        <span class="text-slate-200">{{ $item->item_name }}</span>
-                        <span class="text-slate-400">{{ $item->quantity }}x &bull; {{ number_format($item->weight, 2) }}kg</span>
+                        <span class="text-slate-800">{{ $item->item_name }}</span>
+                        <span class="text-slate-500">{{ $item->quantity }}x &bull; {{ number_format($item->weight, 2) }}kg</span>
                     </div>
                     @endforeach
                 </div>
@@ -130,15 +130,15 @@
 
             {{-- Payment Status --}}
             @if($shipment->payment)
-            <div class="glass-panel rounded-2xl border {{ $shipment->payment->payment_status === 'paid' ? 'border-emerald-900/40' : 'border-orange-900/40' }} p-5">
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Status Pembayaran</h2>
+            <div class="glass-panel rounded-2xl border {{ $shipment->payment->payment_status === 'paid' ? 'border-emerald-200' : 'border-orange-200' }} p-5">
+                <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3">Status Pembayaran</h2>
                 <div class="flex items-center justify-between">
-                    <span class="text-sm text-slate-400">Total Tagihan</span>
-                    <span class="font-bold text-white">Rp {{ number_format($shipment->payment->amount, 0, ',', '.') }}</span>
+                    <span class="text-sm text-slate-500">Total Tagihan</span>
+                    <span class="font-bold text-slate-900">Rp {{ number_format($shipment->payment->amount, 0, ',', '.') }}</span>
                 </div>
                 <div class="flex items-center justify-between mt-2">
-                    <span class="text-sm text-slate-400">Status</span>
-                    <span class="text-sm font-semibold text-slate-700 uppercase">
+                    <span class="text-sm text-slate-500">Status</span>
+                    <span class="text-sm font-semibold {{ $shipment->payment->payment_status === 'paid' ? 'text-emerald-700' : 'text-orange-700' }} uppercase">
                         {{ $shipment->payment->payment_status === 'paid' ? '✓ Lunas' : '⚠ Belum Bayar' }}
                     </span>
                 </div>
@@ -146,7 +146,7 @@
             @endif
 
             {{-- Timeline Tracking --}}
-            <div class="glass-panel rounded-2xl border border-slate-800 p-5">
+            <div class="glass-panel rounded-2xl border border-slate-200 p-5">
                 <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">📋 Riwayat Perpindahan</h2>
                 @php $trackings = $shipment->trackings()->orderBy('tracked_at', 'desc')->get(); @endphp
                 @if($trackings->isNotEmpty())

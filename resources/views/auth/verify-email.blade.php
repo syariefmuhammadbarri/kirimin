@@ -30,14 +30,14 @@
 
 @section('content')
 <div class="flex flex-col items-center justify-center min-h-[80vh] py-8">
-    <div class="w-full max-w-xl p-8 rounded-2xl glass-panel shadow-2xl border border-slate-800/80">
+    <div class="w-full max-w-xl p-8 rounded-2xl glass-panel shadow-2xl border border-slate-200">
         <div class="text-center mb-8">
             <h1 class="text-2xl font-bold tracking-tight text-slate-900 mb-2">Verifikasi Email</h1>
             <p class="text-sm text-slate-600">Masukkan kode OTP 6 digit yang telah dikirim ke email Anda.</p>
         </div>
 
         @if (session('status'))
-            <div class="mb-6 p-4 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-sm">
+            <div class="mb-6 p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
                 {{ session('status') }}
             </div>
         @endif
@@ -64,10 +64,10 @@
             <input type="hidden" name="otp" id="otp-hidden">
 
             @error('otp')
-                <p class="text-xs text-red-400 text-center">{{ $message }}</p>
+                <p class="text-xs text-red-600 text-center">{{ $message }}</p>
             @enderror
 
-            <button type="submit" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-950/60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition duration-150">
+            <button type="submit" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-blue-600/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white transition duration-150">
                 Verifikasi Akun
             </button>
         </form>
