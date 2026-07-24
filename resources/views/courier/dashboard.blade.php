@@ -308,10 +308,19 @@
                             <td class="px-5 py-3 text-slate-700">{{ $shipment->receiver_name }}</td>
                             <td class="px-5 py-3 text-slate-500 text-xs">{{ $shipment->destination_city }}</td>
                             <td class="px-5 py-3 text-center">
-                                <span class="text-xs font-semibold px-2.5 py-1 rounded-full border
-                                    {{ $shipment->status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200' }}">
-                                    {{ $shipment->status === 'delivered' ? 'Terkirim' : 'Gagal' }}
-                                </span>
+                                @if($shipment->status === 'delivered')
+                                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                        Terkirim
+                                    </span>
+                                @elseif($shipment->status === 'delivery_confirmation_pending')
+                                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                                        Menunggu Approval
+                                    </span>
+                                @else
+                                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full border bg-red-50 text-red-700 border-red-200">
+                                        Gagal
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-5 py-3 text-right">
                                 @if($shipment->status === 'gagal_kirim')
@@ -326,6 +335,8 @@
                                     @else
                                         <span class="text-xs text-red-600 font-medium">Batas Retry Habis ({{ $shipment->delivery_attempt_count }}/{{ $maxAttempts }})</span>
                                     @endif
+                                @elseif($shipment->status === 'delivery_confirmation_pending')
+                                    <span class="text-xs text-amber-600 font-medium">Menunggu Verifikasi Admin</span>
                                 @else
                                     <span class="text-xs text-slate-400 font-mono">Lunas</span>
                                 @endif

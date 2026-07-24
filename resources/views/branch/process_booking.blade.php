@@ -147,20 +147,20 @@
 
             {{-- Timeline Tracking --}}
             <div class="glass-panel rounded-2xl border border-slate-800 p-5">
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">📋 Riwayat Perpindahan</h2>
+                <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">📋 Riwayat Perpindahan</h2>
                 @php $trackings = $shipment->trackings()->orderBy('tracked_at', 'desc')->get(); @endphp
                 @if($trackings->isNotEmpty())
-                <div class="relative pl-6 border-l-2 border-slate-700 space-y-5 ml-3">
+                <div class="relative pl-6 border-l-2 border-slate-200 space-y-5 ml-3">
                     @foreach($trackings as $tracking)
                     <div class="relative">
-                        <div class="absolute -left-[31px] top-1.5 h-4 w-4 rounded-full border-2 border-slate-800 
-                            @if($loop->first) bg-blue-600 @else bg-slate-700 @endif"></div>
+                        <div class="absolute -left-[31px] top-1.5 h-4 w-4 rounded-full border-2 border-white 
+                            @if($loop->first) bg-blue-600 @else bg-slate-300 @endif"></div>
                         <div class="space-y-1">
-                            <span class="text-[10px] font-mono text-slate-500 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full">
+                            <span class="text-[10px] font-mono text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full font-medium">
                                 {{ $tracking->tracked_at->format('d M Y H:i:s') }}
                             </span>
-                            <div class="text-sm font-semibold text-slate-200">{{ $tracking->location }}</div>
-                            <p class="text-xs text-slate-400">{{ $tracking->description }}</p>
+                            <div class="text-sm font-semibold text-slate-900">{{ $tracking->location }}</div>
+                            <p class="text-xs text-slate-500">{{ $tracking->description }}</p>
                         </div>
                     </div>
                     @endforeach

@@ -300,13 +300,10 @@ class BranchAdminController extends Controller
             return back()->with('error', 'Paket ini sudah memiliki penugasan kurir aktif.');
         }
 
-        // Validasi status berdasarkan fulfillment_type
-        $isPickup = $shipment->fulfillment_type === 'pickup';
-        if ($isPickup && $shipment->status !== 'pickup_scheduled') {
-            return back()->with('error', 'Paket pickup tidak dalam status menunggu penugasan kurir jemput.');
-        }
+        // Validasi status berdasarkan status pengiriman
+        $isPickup = $shipment->status === 'pickup_scheduled';
         if (!$isPickup && $shipment->status !== 'received_at_branch') {
-            return back()->with('error', 'Paket dropoff harus sudah diterima di cabang (received_at_branch) sebelum ditugaskan ke kurir.');
+            return back()->with('error', 'Paket harus berstatus Penjemputan Dijadwalkan atau Diterima di Gudang Cabang sebelum ditugaskan ke kurir.');
         }
 
         DB::transaction(function () use ($request, $shipment, $courier, $admin, $branch, $isPickup) {

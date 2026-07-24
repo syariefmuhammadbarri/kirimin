@@ -101,7 +101,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800/60">
+                    <tr class="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
                         <th class="px-5 py-3 text-left">Resi / Booking</th>
                         <th class="px-5 py-3 text-left">Pelanggan</th>
                         <th class="px-5 py-3 text-left">Rute</th>
@@ -111,9 +111,9 @@
                         <th class="px-5 py-3 text-right">Aksi</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-800/50">
+                <tbody class="divide-y divide-slate-100">
                     @foreach($shipments as $shipment)
-                    <tr class="hover:bg-slate-800/20 transition" id="row-{{ $shipment->id }}">
+                    <tr class="hover:bg-slate-50/50 transition" id="row-{{ $shipment->id }}">
                         <td class="px-5 py-4">
                             <div class="font-mono text-slate-700 text-xs font-semibold">{{ $shipment->tracking_number }}</div>
                             <div class="text-xs text-slate-500 mt-0.5">{{ $shipment->booking_code }}</div>

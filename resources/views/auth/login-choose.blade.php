@@ -10,7 +10,7 @@
         </div>
 
         @if (session('status'))
-            <div class="mb-6 p-3 rounded-lg bg-blue-950/40 border border-blue-900 text-blue-400 text-sm font-medium text-center max-w-md mx-auto">
+            <div class="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium text-center max-w-md mx-auto">
                 {{ session('status') }}
             </div>
         @endif

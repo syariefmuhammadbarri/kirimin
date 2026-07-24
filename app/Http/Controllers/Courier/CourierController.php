@@ -418,7 +418,12 @@ class CourierController extends Controller
 
                 CourierAssignment::updateOrCreate(
                     ['shipment_id' => $shipment->id, 'type' => 'delivery', 'status' => 'pending'],
-                    ['courier_id' => $courier->id, 'status' => 'assigned']
+                    [
+                        'courier_id'  => $courier->id,
+                        'assigned_by' => $courier->id,
+                        'assigned_at' => now(),
+                        'status'      => 'assigned',
+                    ]
                 );
 
                 // Notify customer
