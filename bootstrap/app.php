@@ -12,6 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Railway (dan platform PaaS lain) terminate HTTPS di reverse proxy
+        // di depan container ini. Tanpa baris ini, Laravel mengira semua
+        // request datang via HTTP biasa, sehingga url()/asset()/@vite
+        // generate link http:// padahal halamannya dibuka via https:// —
+        // browser blokir sebagai mixed content, hasilnya CSS/JS gagal load.
+        $middleware->trustProxies(at: '*');
+
         $middleware->validateCsrfTokens(except: [
             'webhook/midtrans',
         ]);
